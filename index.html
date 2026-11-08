@@ -1,0 +1,1292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SMMU 深度学习手册 — 从入门到完全掌握</title>
+<style>
+:root{
+  --bg:#0f1420; --bg2:#161d2e; --bg3:#1d2637; --panel:#1a2233;
+  --border:#2a3550; --border2:#33405f;
+  --text:#dbe2f0; --muted:#8b98b5; --muted2:#64708c;
+  --accent:#4da3ff; --accent2:#7bc8ff; --green:#3ddc97; --orange:#ffb454;
+  --red:#ff6b7a; --purple:#b58cff; --yellow:#ffd76a;
+  --code-bg:#0c1120; --code-border:#26304a;
+  --shadow:0 6px 24px rgba(0,0,0,.35);
+  --mono:"SFMono-Regular",ui-monospace,"JetBrains Mono","Fira Code",Consolas,"Liberation Mono",Menlo,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;
+}
+[data-theme="light"]{
+  --bg:#f5f7fb; --bg2:#ffffff; --bg3:#eef1f8; --panel:#ffffff;
+  --border:#d9dfeb; --border2:#c3cbdd;
+  --text:#1c2433; --muted:#4d5a72; --muted2:#74809a;
+  --accent:#1668d8; --accent2:#0f5bc4; --green:#0d8a5c; --orange:#c9740a;
+  --red:#c9344a; --purple:#7a45d6; --yellow:#a87908;
+  --code-bg:#f2f4f9; --code-border:#dbe0ec;
+  --shadow:0 6px 20px rgba(30,50,90,.10);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:76px}
+body{
+  margin:0;background:var(--bg);color:var(--text);
+  font-family:var(--sans);font-size:15.5px;line-height:1.72;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* ---------- top bar ---------- */
+.topbar{
+  position:fixed;top:0;left:0;right:0;height:56px;z-index:100;
+  background:linear-gradient(180deg,var(--bg2),var(--bg));
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:12px;padding:0 16px;
+}
+.topbar .brand{font-weight:700;font-size:16px;letter-spacing:.3px;white-space:nowrap}
+.topbar .brand .chip{
+  font-size:11px;color:var(--accent);border:1px solid var(--accent);
+  border-radius:10px;padding:1px 7px;margin-left:6px;vertical-align:2px;
+}
+.search{
+  flex:1;max-width:520px;margin-left:8px;
+}
+.search input{
+  width:100%;padding:8px 14px;border-radius:9px;border:1px solid var(--border);
+  background:var(--bg3);color:var(--text);font-size:14px;outline:none;
+}
+.search input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(77,163,255,.15)}
+.top-actions{display:flex;align-items:center;gap:8px;margin-left:auto}
+.btn{
+  border:1px solid var(--border);background:var(--bg3);color:var(--text);
+  border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer;white-space:nowrap;
+  transition:.15s;
+}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.primary:hover{background:var(--accent2)}
+.menu-toggle{display:none}
+
+/* ---------- layout ---------- */
+.shell{display:flex;padding-top:56px}
+.sidebar{
+  position:fixed;top:56px;left:0;bottom:0;width:290px;overflow-y:auto;
+  background:var(--bg2);border-right:1px solid var(--border);padding:20px 10px 40px;
+  z-index:90;
+}
+.main{
+  margin-left:290px;flex:1;min-width:0;padding:28px 40px 120px;max-width:1100px;
+}
+@media(max-width:980px){
+  .sidebar{transform:translateX(-100%);transition:.25s;box-shadow:var(--shadow)}
+  .sidebar.open{transform:translateX(0)}
+  .main{margin-left:0;padding:20px 18px 100px}
+  .menu-toggle{display:inline-flex}
+}
+
+/* ---------- toc ---------- */
+.toc h3{
+  font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--muted2);
+  margin:6px 14px 12px;
+}
+.toc a{
+  display:block;padding:6px 14px;border-radius:8px;color:var(--muted);
+  font-size:13.5px;line-height:1.5;border-left:2px solid transparent;
+}
+.toc a:hover{background:var(--bg3);color:var(--text);text-decoration:none}
+.toc a.active{
+  background:var(--bg3);color:var(--accent);border-left-color:var(--accent);font-weight:600;
+}
+.toc .lvl2{padding-left:28px;font-size:12.5px}
+.progress-wrap{margin:16px 14px 4px}
+.progress-label{font-size:11px;color:var(--muted2);display:flex;justify-content:space-between;margin-bottom:4px}
+.progress{height:6px;background:var(--bg3);border-radius:3px;overflow:hidden}
+.progress>i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--green));width:0;transition:.3s}
+
+/* ---------- headings ---------- */
+h1{font-size:30px;line-height:1.3;margin:0 0 8px}
+h1 .sub{font-size:16px;color:var(--muted);font-weight:400;display:block;margin-top:6px}
+h2{
+  font-size:23px;margin:54px 0 16px;padding-bottom:10px;
+  border-bottom:2px solid var(--border2);scroll-margin-top:76px;
+}
+h2 .num{color:var(--accent);margin-right:8px;font-family:var(--mono);font-size:19px}
+h3{font-size:17.5px;margin:30px 0 12px;color:var(--accent2)}
+h4{font-size:15.5px;margin:22px 0 8px}
+p{margin:10px 0}
+.lead{font-size:16.5px;color:var(--muted);max-width:820px}
+ul,ol{padding-left:24px}
+li{margin:5px 0}
+strong{color:var(--text)}
+.tag{
+  display:inline-block;font-size:11px;padding:2px 8px;border-radius:6px;margin-left:6px;
+  vertical-align:2px;font-weight:600;
+}
+.tag.c{background:rgba(61,220,151,.15);color:var(--green)}
+.tag.v{background:rgba(181,140,255,.16);color:var(--purple)}
+.tag.w{background:rgba(255,180,84,.16);color:var(--orange)}
+.tag.r{background:rgba(255,107,122,.15);color:var(--red)}
+.tag.a{background:rgba(77,163,255,.16);color:var(--accent)}
+
+/* ---------- cards ---------- */
+.card{
+  background:var(--panel);border:1px solid var(--border);border-radius:12px;
+  padding:18px 20px;margin:16px 0;box-shadow:var(--shadow);
+}
+.card.grad{border-left:4px solid var(--accent)}
+.card.ok{border-left:4px solid var(--green)}
+.card.warn{border-left:4px solid var(--orange)}
+.card.err{border-left:4px solid var(--red)}
+.card h4{margin-top:0}
+.grid{display:grid;gap:14px;margin:16px 0}
+.grid.cols2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.grid.cols3{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.kv{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px dashed var(--border)}
+.kv:last-child{border-bottom:none}
+.kv .k{color:var(--muted);font-size:13.5px}
+.kv .v{font-family:var(--mono);font-size:13.5px;text-align:right;word-break:break-all}
+
+/* ---------- tables ---------- */
+.table-wrap{overflow-x:auto;margin:16px 0;border:1px solid var(--border);border-radius:10px}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top}
+th{background:var(--bg3);font-weight:600;white-space:nowrap;color:var(--accent2)}
+tr:last-child td{border-bottom:none}
+tbody tr:hover{background:var(--bg3)}
+td .mono,th .mono{font-family:var(--mono);font-size:12.5px}
+tr.hl td{background:rgba(77,163,255,.08)}
+
+/* ---------- code ---------- */
+pre{
+  background:var(--code-bg);border:1px solid var(--code-border);border-radius:10px;
+  padding:14px 16px;overflow-x:auto;margin:14px 0;position:relative;
+  font-family:var(--mono);font-size:13px;line-height:1.65;color:#c8d4ee;
+}
+[data-theme="light"] pre{color:#22304a}
+pre .cm{color:var(--muted2);font-style:italic}
+pre .kw{color:var(--purple)}
+pre .st{color:var(--green)}
+pre .nm{color:var(--yellow)}
+pre .fn{color:var(--accent)}
+code{
+  font-family:var(--mono);font-size:.92em;background:var(--bg3);
+  padding:1px 6px;border-radius:5px;border:1px solid var(--border);
+}
+pre code{background:none;border:none;padding:0;font-size:13px}
+.copy-btn{
+  position:absolute;top:8px;right:8px;font-size:11px;padding:3px 9px;
+  border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);
+  cursor:pointer;opacity:.75;
+}
+.copy-btn:hover{opacity:1;color:var(--accent)}
+
+/* ---------- callout / details ---------- */
+details{
+  background:var(--bg3);border:1px solid var(--border);border-radius:10px;
+  margin:14px 0;overflow:hidden;
+}
+summary{
+  cursor:pointer;padding:12px 16px;font-weight:600;list-style:none;
+  display:flex;align-items:center;gap:8px;color:var(--accent2);
+}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"▸";transition:.2s;color:var(--muted)}
+details[open] summary::before{transform:rotate(90deg)}
+details .body{padding:2px 18px 16px;border-top:1px solid var(--border)}
+details.deep{border-left:3px solid var(--purple)}
+details.deep summary{color:var(--purple)}
+details .body p{font-size:14.5px}
+
+/* ---------- diagrams ---------- */
+.diagram{background:var(--code-bg);border:1px solid var(--border);border-radius:12px;padding:14px;margin:18px 0;overflow-x:auto}
+.diagram svg{display:block;margin:0 auto;max-width:100%;height:auto}
+.diagram .cap{text-align:center;color:var(--muted2);font-size:12.5px;margin-top:8px}
+
+/* ---------- quiz ---------- */
+.quiz-item{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin:14px 0}
+.quiz-item .q{font-weight:600;margin-bottom:10px}
+.quiz-item label{
+  display:block;padding:9px 12px;margin:6px 0;border:1px solid var(--border);
+  border-radius:8px;cursor:pointer;font-size:14px;transition:.12s;
+}
+.quiz-item label:hover{background:var(--bg3)}
+.quiz-item input{accent-color:var(--accent);margin-right:8px}
+.quiz-item.correct label.ans{background:rgba(61,220,151,.14);border-color:var(--green)}
+.quiz-item.wrong label.ans{background:rgba(255,107,122,.14);border-color:var(--red)}
+.feedback{font-size:13.5px;margin-top:10px;padding:9px 12px;border-radius:8px;display:none}
+.feedback.show{display:block}
+.feedback.ok{background:rgba(61,220,151,.1);border:1px solid var(--green);color:var(--green)}
+.feedback.no{background:rgba(255,107,122,.1);border:1px solid var(--red);color:var(--red)}
+.quiz-score{font-size:16px;font-weight:700;margin:16px 0;padding:12px 16px;border-radius:10px;background:var(--bg3);border:1px solid var(--border)}
+
+/* ---------- calculator ---------- */
+.calc{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:12px 0}
+.calc input,.calc select{
+  padding:9px 12px;border-radius:8px;border:1px solid var(--border);
+  background:var(--bg3);color:var(--text);font-size:14px;font-family:var(--mono);
+}
+.calc input:focus{outline:none;border-color:var(--accent)}
+.calc-output{margin-top:12px}
+.calc-output .step{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0;
+  font-family:var(--mono);font-size:13.5px;
+}
+.pill{
+  display:inline-block;font-family:var(--mono);font-size:13px;padding:4px 10px;
+  border-radius:7px;background:var(--bg3);border:1px solid var(--border);margin:2px;
+}
+.pill.hot{background:rgba(77,163,255,.14);border-color:var(--accent);color:var(--accent2)}
+
+/* ---------- checklist ---------- */
+.checklist label{
+  display:flex;gap:10px;align-items:flex-start;padding:9px 12px;margin:5px 0;
+  border:1px solid var(--border);border-radius:9px;cursor:pointer;background:var(--panel);
+}
+.checklist label:hover{background:var(--bg3)}
+.checklist input{accent-color:var(--green);margin-top:3px}
+.checklist .done{opacity:.55;text-decoration:line-through}
+
+/* ---------- misc ---------- */
+.pillbar{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+.backtop{
+  position:fixed;right:22px;bottom:22px;width:44px;height:44px;border-radius:50%;
+  background:var(--accent);color:#fff;border:none;font-size:20px;cursor:pointer;
+  box-shadow:var(--shadow);display:none;align-items:center;justify-content:center;z-index:80;
+}
+.backtop.show{display:flex}
+mark{background:rgba(255,214,106,.4);color:inherit;border-radius:3px;padding:0 2px}
+.hidden{display:none}
+.footnote{font-size:12.5px;color:var(--muted2);margin-top:4px}
+.ref{font-size:13.5px}
+</style>
+</head>
+<body data-theme="dark">
+
+<div class="topbar">
+  <button class="btn menu-toggle" id="menuToggle" title="目录">☰</button>
+  <div class="brand">SMMU 深度学习手册 <span class="chip">ARM System MMU</span></div>
+  <div class="search"><input type="text" id="searchBox" placeholder="搜索…（如 StreamID、STE、Stage 2、TLBI、PRI）"></div>
+  <div class="top-actions">
+    <button class="btn" id="themeBtn" title="切换主题">🌙 主题</button>
+    <button class="btn" id="expandBtn">展开全部</button>
+    <button class="btn" id="resetBtn">重置进度</button>
+  </div>
+</div>
+
+<div class="shell">
+  <nav class="sidebar" id="sidebar">
+    <div class="progress-wrap">
+      <div class="progress-label"><span>学习进度</span><span id="progPct">0%</span></div>
+      <div class="progress"><i id="progBar"></i></div>
+    </div>
+    <div class="toc" id="toc">
+      <h3>目录</h3>
+    </div>
+  </nav>
+
+  <main class="main" id="main">
+
+    <h1>系统内存管理单元（SMMU）完全掌握手册
+      <span class="sub">面向有经验的芯片开发工程师 · 从原理、数据结构、翻译流程到编程模型与 Linux 实战 · 可离线使用</span>
+    </h1>
+
+    <div class="card grad">
+      <p style="margin:0"><strong>一句话定义：</strong>SMMU（System Memory Management Unit）是 ARM 体系中的 <strong>IOMMU</strong>，为外设（DMA 主设备）提供<strong>地址转换、访问隔离与虚拟化</strong>能力 —— 相当于把 CPU 的 MMU 搬到“设备访问内存”这条路径上。它把设备的 DMA 地址（IOVA）翻译成物理地址（PA），并强制设备只能访问被授权（映射）的内存。</p>
+    </div>
+
+    <!-- ===================== 1 ===================== -->
+    <section id="sec-why">
+      <h2><span class="num">01</span>为什么需要 SMMU：动机与价值</h2>
+      <p class="lead">要“完全掌握”SMMU，先要理解它解决的根本问题。没有 SMMU 时，外设通过 DMA 直接使用<strong>物理地址</strong>访问内存，这带来三类致命问题。</p>
+
+      <div class="grid cols3">
+        <div class="card err">
+          <h4>① DMA 越界 / 隔离缺失</h4>
+          <p style="font-size:14px">设备驱动只要写错一个 DMA 地址，设备就能读写<strong>任意物理内存</strong>（包括内核、其他进程、甚至安全世界）。一个恶意的或出 bug 的设备可以攻破整个系统。SMMU 让设备只能访问被显式映射的页。</p>
+        </div>
+        <div class="card warn">
+          <h4>② 虚拟化中的设备直通</h4>
+          <p style="font-size:14px">虚拟机（Guest）期望以 GPA（Guest PA）使用设备，但设备 DMA 用的是 IPA/PA。没有 SMMU，无法安全地把一个 PCIe 设备直通（passthrough）给 Guest；有了 SMMU Stage 2，Hypervisor 可以把设备的 IPA 翻译到真实 PA。</p>
+        </div>
+        <div class="card ok">
+          <h4>③ 零散物理内存与共享页表</h4>
+          <p style="font-size:14px">DMA 需要<strong>连续物理内存</strong>（如 legacy 的 bounce buffer / CMA / IOMMU 预留池）。SMMU 让设备使用连续的 IOVA（虚拟设备地址），SMMU 逐页翻译，把零散物理页拼起来，并让设备与 CPU 共享同一套页表语义。</p>
+        </div>
+      </div>
+
+      <h3>SMMU 提供的能力清单</h3>
+      <div class="card">
+        <ul style="margin:6px 0">
+          <li><strong>地址转换（Translation）</strong>：把设备发起的 IOVA/GVA 翻译成 IPA/PA。</li>
+          <li><strong>访问隔离（Isolation）</strong>：未映射 / 越权访问 → 触发 fault 并 abort 或 stall。</li>
+          <li><strong>虚拟化（Stage 2）</strong>：以 VMID 为单位隔离多个 Guest 的设备访问，支持设备直通。</li>
+          <li><strong>进程级设备地址（Stage 1 + PASID/SubstreamID）</strong>：支持共享虚拟内存（SVM/SVA），设备用进程 VA 直接访问。</li>
+          <li><strong>IOMMU API 统一接口</strong>：Linux 下通过 <code>iommu_ops</code> 抽象，驱动不关心具体是 ARM SMMU 还是 Intel VT-d。</li>
+        </ul>
+      </div>
+
+      <details class="deep">
+        <summary>对比：MMU（CPU） vs SMMU（IO） vs IOMMU（x86）</summary>
+        <div class="body">
+          <div class="table-wrap">
+            <table>
+              <tr><th>维度</th><th>CPU MMU</th><th>SMMU（ARM）</th><th>Intel VT-d（x86 IOMMU）</th></tr>
+              <tr><td>服务对象</td><td>CPU 取指/访存</td><td>DMA 设备访问内存</td><td>DMA 设备访问内存</td></tr>
+              <tr><td>发起方标识</td><td>ASID / 页表基址</td><td>StreamID + SubstreamID</td><td>BDF（Bus:Dev.Func）+ PASID</td></tr>
+              <tr><td>转换阶段</td><td>EL0/EL1（Stage 1）+ EL2（Stage 2）</td><td>Stage 1（VA→IPA）+ Stage 2（IPA→PA）</td><td>First/Second-level（对应 Stage 1/2）</td></tr>
+              <tr><td>页表格式</td><td>AArch64 转换表</td><td>同 AArch64 转换表（共享格式）</td><td>Intel 页表格式</td></tr>
+              <tr><td>缓存</td><td>TLB</td><td>SMMU TLB + 设备侧 ATC</td><td>IOTLB + 设备侧 ATC</td></tr>
+              <tr><td>典型产品代际</td><td>—</td><td>SMMUv2 → SMMUv3</td><td>VT-d 1.x → 3.x</td></tr>
+            </table>
+          </div>
+          <p class="footnote">关键结论：SMMU 与 CPU MMU <strong>共享同一套 AArch64 页表格式</strong>，因此可以把同一份页表（或同一套描述符语义）复用给 CPU 与设备，这是 SVA（共享虚拟地址）的技术基础。</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ===================== 2 ===================== -->
+    <section id="sec-place">
+      <h2><span class="num">02</span>SMMU 在系统中的位置</h2>
+      <p class="lead">SMMU 位于<strong>DMA 主设备与系统互联/内存控制器之间</strong>，是设备访存路径上的必经检查点。</p>
+
+      <div class="diagram">
+        <svg viewBox="0 0 960 330" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,Segoe UI,sans-serif">
+          <defs>
+            <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#8b98b5"/></marker>
+            <marker id="arA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#4da3ff"/></marker>
+          </defs>
+          <!-- CPU cluster -->
+          <rect x="30" y="40" width="200" height="90" rx="10" fill="#1d2637" stroke="#33405f"/>
+          <text x="130" y="72" fill="#dbe2f0" font-size="15" text-anchor="middle" font-weight="700">CPU 集群</text>
+          <text x="130" y="94" fill="#8b98b5" font-size="12" text-anchor="middle">(内嵌 MMU + TLB)</text>
+          <text x="130" y="114" fill="#8b98b5" font-size="11" text-anchor="middle">发出物理地址 PA</text>
+          <!-- Devices -->
+          <rect x="30" y="180" width="200" height="90" rx="10" fill="#1d2637" stroke="#33405f"/>
+          <text x="130" y="212" fill="#dbe2f0" font-size="15" text-anchor="middle" font-weight="700">DMA 设备</text>
+          <text x="130" y="234" fill="#8b98b5" font-size="12" text-anchor="middle">GPU / NIC / NVMe / 加速器</text>
+          <text x="130" y="254" fill="#ffb454" font-size="11" text-anchor="middle">发出 IOVA + StreamID</text>
+          <!-- SMMU -->
+          <rect x="380" y="110" width="200" height="110" rx="12" fill="#16233a" stroke="#4da3ff" stroke-width="2"/>
+          <text x="480" y="145" fill="#7bc8ff" font-size="17" text-anchor="middle" font-weight="700">SMMU</text>
+          <text x="480" y="167" fill="#8b98b5" font-size="11.5" text-anchor="middle">查 Stream Table / 页表</text>
+          <text x="480" y="185" fill="#8b98b5" font-size="11.5" text-anchor="middle">IOVA → PA + 权限检查</text>
+          <text x="480" y="203" fill="#3ddc97" font-size="11.5" text-anchor="middle">TLB 缓存</text>
+          <!-- interconnect + DRAM -->
+          <rect x="700" y="110" width="230" height="110" rx="12" fill="#1d2637" stroke="#33405f"/>
+          <text x="815" y="145" fill="#dbe2f0" font-size="15" text-anchor="middle" font-weight="700">互联 + 内存控制器</text>
+          <text x="815" y="167" fill="#8b98b5" font-size="11.5" text-anchor="middle">收到已转换的 PA</text>
+          <text x="815" y="185" fill="#8b98b5" font-size="11.5" text-anchor="middle">→ DRAM（物理内存）</text>
+
+          <!-- arrows -->
+          <line x1="230" y1="85" x2="378" y2="140" stroke="#8b98b5" stroke-width="2" marker-end="url(#ar)"/>
+          <line x1="230" y1="225" x2="378" y2="190" stroke="#4da3ff" stroke-width="2" marker-end="url(#arA)"/>
+          <line x1="580" y1="165" x2="698" y2="165" stroke="#4da3ff" stroke-width="2" marker-end="url(#arA)"/>
+          <text x="300" y="72" fill="#8b98b5" font-size="11">PA 直通（不经 SMMU）</text>
+          <text x="300" y="255" fill="#7bc8ff" font-size="11">IOVA/StreamID（必经 SMMU）</text>
+        </svg>
+        <div class="cap">图 1 · SMMU 的拓扑位置：CPU 用物理地址直连内存；设备的所有内存访问都经过 SMMU 完成翻译与鉴权</div>
+      </div>
+
+      <div class="card warn">
+        <h4>关键工程直觉</h4>
+        <ul style="margin:6px 0">
+          <li>SMMU 处于<strong>事务（transaction）路径</strong>上，属于 <strong>Memory System / 一致性域（Coherency Domain）</strong>的一部分，而不是普通的“总线桥”。</li>
+          <li>它对设备发出的每个 AXI/ACE/CHI 事务都<strong>必须</strong>做 StreamID → 翻译决策；因此其<strong>吞吐/延迟</strong>直接影响设备 DMA 性能，TLB 命中率至关重要。</li>
+          <li>设备端发出的地址在进入 SMMU 前是<strong>IOVA（I/O Virtual Address）</strong>；进入内存控制器前必须是<strong>PA</strong>。</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ===================== 3 ===================== -->
+    <section id="sec-evolution">
+      <h2><span class="num">03</span>架构演进：SMMUv2 → SMMUv3</h2>
+      <p class="lead">理解代际差异，能帮你读懂各类 SoC 的 SMMU 实现与 Linux 驱动分支（<code>arm-smmu.c</code> vs <code>arm-smmu-v3.c</code>）。</p>
+
+      <div class="table-wrap">
+        <table>
+          <tr><th>特性</th><th>SMMUv2（arm-smmu.c）</th><th>SMMUv3（arm-smmu-v3.c）</th></tr>
+          <tr><td>StreamID → 上下文查找</td><td>Stream Mapping 寄存器组（SMR + S2CR），数量有限、需软件匹配</td><td>内存中的 <strong>Stream Table</strong>（STE），可线性/二级索引，扩展性好</td></tr>
+          <tr><td>SubstreamID（PASID）</td><td>不支持（或受限）</td><td>原生支持，配合 <strong>Context Descriptor（CD）</strong></td></tr>
+          <tr><td>命令 / 事件 / PRI 队列</td><td>有命令队列（较简单）</td><td>三队列模型完整：CMDQ / EVENTQ / PRIQ</td></tr>
+          <tr><td>Stage 1 + Stage 2 嵌套</td><td>支持</td><td>支持（更完善）</td></tr>
+          <tr><td>ATS / PRI（设备侧缓存）</td><td>部分</td><td>完整（PCIe ATS + PRI，支持可恢复 fault）</td></tr>
+          <tr><td>缺页处理</td><td>以 abort/stall 为主</td><td>支持 <strong>PRI 请求式缺页</strong>（demand paging，如 GPU 共享页表）</td></tr>
+          <tr><td>典型 IP</td><td>Arm MMU-400 / MMU-500</td><td>MMU-600 / MMU-700 及各类自研</td></tr>
+          <tr><td>寄存器模型</td><td>分散的 per-context 寄存器</td><td>内存驻留结构 + 少量 MMIO 寄存器</td></tr>
+        </table>
+      </div>
+
+      <div class="card grad">
+        <p style="margin:0"><strong>学习建议：</strong>以 <strong>SMMUv3</strong> 为主线学习（它是现代 SoC 与 Linux 主线驱动的重心），同时了解 v2 的 SMR/S2CR 概念以便读旧代码。本文后续内容均以 SMMUv3 为主。</p>
+      </div>
+    </section>
+
+    <!-- ===================== 4 ===================== -->
+    <section id="sec-concepts">
+      <h2><span class="num">04</span>核心概念与术语（务必烂熟于心）</h2>
+      <p class="lead">SMMU 的“心智模型”由下面几个概念构成。它们环环相扣，先建立整体图景。</p>
+
+      <div class="table-wrap">
+        <table>
+          <tr><th>术语</th><th>含义</th><th>类比 / 备注</th></tr>
+          <tr><td><span class="mono">StreamID (SID)</span></td><td>标识一个<strong>设备/功能</strong>的 ID，随事务从设备发出</td><td>PCIe 下通常映射自 <strong>BDF</strong>（Requestor ID）；最多 32 位，常见 16 位</td></tr>
+          <tr><td><span class="mono">SubstreamID (SSID)</span></td><td>在同一 StreamID 下进一步区分<strong>子上下文</strong>（如进程/队列）</td><td>对应 PCIe <strong>PASID</strong>，最多 20 位</td></tr>
+          <tr><td><span class="mono">STE</span></td><td>Stream Table Entry，每个 StreamID 对应一个，描述“这个设备该怎么翻译”</td><td>64 字节；内含 Stage1/Stage2 配置指针</td></tr>
+          <tr><td><span class="mono">CD</span></td><td>Context Descriptor，每个 SubstreamID 对应一个，描述“这个子上下文的 Stage 1 页表”</td><td>64 字节；内含 TTB0/TTB1、ASID 等</td></tr>
+          <tr><td><span class="mono">Stage 1</span></td><td>第一级翻译：<strong>VA → IPA</strong>（或对非虚拟化是 VA→PA）</td><td>类比 CPU 的进程页表（EL0/EL1）</td></tr>
+          <tr><td><span class="mono">Stage 2</span></td><td>第二级翻译：<strong>IPA → PA</strong></td><td>类比 Hypervisor 的 EL2 Stage 2</td></tr>
+          <tr><td><span class="mono">VMID</span></td><td>Virtual Machine ID，隔离不同 Guest 的 Stage 2 上下文</td><td>类比 Stage 2 的 ASID</td></tr>
+          <tr><td><span class="mono">ASID</span></td><td>Address Space ID，隔离不同地址空间的 Stage 1</td><td>类比 CPU TLB 的 ASID</td></tr>
+          <tr><td><span class="mono">IOVA</span></td><td>设备视角的 I/O 虚拟地址</td><td>驱动通过 IOMMU API 分配的 DMA 地址</td></tr>
+          <tr><td><span class="mono">TLB</span></td><td>SMMU 内部缓存翻译结果</td><td>按 ASID/VMID 打标，需软件/硬件维护</td></tr>
+          <tr><td><span class="mono">ATC</span></td><td>设备侧 Address Translation Cache</td><td>设备缓存翻译，用 ATS 协议同步</td></tr>
+          <tr><td><span class="mono">ATS</span></td><td>Address Translation Services，设备查询/缓存翻译</td><td>PCIe 协议扩展</td></tr>
+          <tr><td><span class="mono">PRI</span></td><td>Page Request Interface，设备上报缺页</td><td>支持可恢复 fault / demand paging</td></tr>
+        </table>
+      </div>
+
+      <details class="deep">
+        <summary>StreamID 与 SubstreamID 的来源（PCIe 场景）</summary>
+        <div class="body">
+          <p>在 PCIe 中，事务的 Requestor ID（RID = Bus:Device.Function，16 位）由 Root Complex 转成 <strong>StreamID</strong> 送给 SMMU。若设备支持 PASID（Process Address Space ID），则 PASID TLP Prefix 转成 <strong>SubstreamID</strong>。</p>
+          <pre><span class="cm">// 示例：NIC 直通 + 每队列一个 SubstreamID（用于 SVA）</span>
+StreamID   = 0x0088        <span class="cm">// RID: BDF 0088 -> 设备 0000:00:88.0</span>
+SubstreamID= PASID (0..N)  <span class="cm">// 每个硬件队列绑定一个进程地址空间</span></pre>
+          <p>于是翻译层次非常清晰：<strong>StreamID 决定“设备级”策略（STE）→ SubstreamID 决定“进程级”策略（CD）→ 最终页表决定“页级”映射</strong>。</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ===================== 5 ===================== -->
+    <section id="sec-flow">
+      <h2><span class="num">05</span>翻译流程全貌（核心机制）</h2>
+      <p class="lead">一次设备 DMA 事务进入 SMMU 后，翻译决策流程如下。这是整个 SMMU 的“主循环”，务必逐字理解。</p>
+
+      <div class="diagram">
+        <svg viewBox="0 0 980 520" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,Segoe UI,sans-serif">
+          <defs>
+            <marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#7bc8ff"/></marker>
+          </defs>
+          <!-- incoming -->
+          <rect x="20" y="30" width="940" height="58" rx="10" fill="#16233a" stroke="#4da3ff"/>
+          <text x="40" y="58" fill="#7bc8ff" font-size="14" font-weight="700">入站事务</text>
+          <text x="40" y="78" fill="#8b98b5" font-size="12">StreamID · SubstreamID · 地址(IOVA) · 读写/属性</text>
+          <!-- step 1 -->
+          <rect x="60" y="120" width="300" height="70" rx="10" fill="#1d2637" stroke="#33405f"/>
+          <text x="75" y="148" fill="#dbe2f0" font-size="13.5" font-weight="700">① 查 Stream Table</text>
+          <text x="75" y="168" fill="#8b98b5" font-size="12">STE 地址 = STRTAB_BASE + SID × 64</text>
+          <text x="75" y="184" fill="#8b98b5" font-size="12">(支持线性 / 二级查表)</text>
+          <!-- step 2 -->
+          <rect x="420" y="120" width="280" height="70" rx="10" fill="#1d2637" stroke="#33405f"/>
+          <text x="435" y="148" fill="#dbe2f0" font-size="13.5" font-weight="700">② 读 STE.Config</text>
+          <text x="435" y="168" fill="#8b98b5" font-size="12">Bypass / Abort / S1 / S2 / S1+S2</text>
+          <!-- step 3 branches -->
+          <rect x="60" y="250" width="300" height="80" rx="10" fill="#1d2637" stroke="#3ddc97"/>
+          <text x="75" y="278" fill="#3ddc97" font-size="13.5" font-weight="700">③ Stage 1：查 CD</text>
+          <text x="75" y="298" fill="#8b98b5" font-size="12">CD = S1ContextPtr + SSID × 64</text>
+          <text x="75" y="314" fill="#8b98b5" font-size="12">读 TTB0/TTB1 · ASID · 粒度</text>
+          <rect x="420" y="250" width="280" height="80" rx="10" fill="#1d2637" stroke="#b58cff"/>
+          <text x="435" y="278" fill="#b58cff" font-size="13.5" font-weight="700">④ Stage 2：读 S2TTB</text>
+          <text x="435" y="298" fill="#8b98b5" font-size="12">从 STE 直接取 Stage2 表基址</text>
+          <text x="435" y="314" fill="#8b98b5" font-size="12">以 VMID 标记上下文</text>
+          <!-- walk -->
+          <rect x="760" y="250" width="200" height="80" rx="10" fill="#1d2637" stroke="#ffb454"/>
+          <text x="775" y="278" fill="#ffb454" font-size="13.5" font-weight="700">⑤ 页表走查</text>
+          <text x="775" y="298" fill="#8b98b5" font-size="12">VA→IPA（Stage1）</text>
+          <text x="775" y="314" fill="#8b98b5" font-size="12">IPA→PA（Stage2）</text>
+          <!-- output -->
+          <rect x="240" y="400" width="500" height="70" rx="10" fill="#16233a" stroke="#3ddc97"/>
+          <text x="490" y="432" fill="#3ddc97" font-size="14" text-anchor="middle" font-weight="700">⑥ 得到 PA → 查权限 → 放行 / Fault</text>
+          <text x="490" y="454" fill="#8b98b5" font-size="12" text-anchor="middle">结果缓存进 SMMU TLB（ASID/VMID 打标）</text>
+
+          <line x1="210" y1="88" x2="210" y2="120" stroke="#7bc8ff" stroke-width="2" marker-end="url(#b)"/>
+          <line x1="360" y1="155" x2="420" y2="155" stroke="#7bc8ff" stroke-width="2" marker-end="url(#b)"/>
+          <line x1="500" y1="190" x2="210" y2="250" stroke="#7bc8ff" stroke-width="2" marker-end="url(#b)"/>
+          <line x1="500" y1="190" x2="560" y2="250" stroke="#7bc8ff" stroke-width="2" marker-end="url(#b)"/>
+          <line x1="210" y1="330" x2="210" y2="400" stroke="#7bc8ff" stroke-width="2" marker-end="url(#b)"/>
+          <line x1="560" y1="330" x2="560" y2="400" stroke="#7bc8ff" stroke-width="2" marker-end="url(#b)"/>
+          <line x1="860" y1="330" x2="860" y2="400" stroke="#7bc8ff" stroke-width="2" marker-end="url(#b)"/>
+          <text x="62" y="245" fill="#3ddc97" font-size="11">S1/S1+S2</text>
+          <text x="422" y="245" fill="#b58cff" font-size="11">S2</text>
+        </svg>
+        <div class="cap">图 2 · SMMUv3 翻译主流程：StreamID→STE，SubstreamID→CD，再走 Stage1（可选）+ Stage2 页表走查得到 PA</div>
+      </div>
+
+      <h3>Stage 1 / Stage 2 / 嵌套 三种模式的语义</h3>
+      <div class="table-wrap">
+        <table>
+          <tr><th>STE.Config</th><th>模式</th><th>地址语义</th><th>典型用途</th></tr>
+          <tr class="hl"><td class="mono">0b001</td><td>仅 Stage 1</td><td>VA → PA（直接）</td><td>非虚拟化下的 SVA / 设备用进程 VA</td></tr>
+          <tr><td class="mono">0b010</td><td>仅 Stage 2</td><td>IPA → PA</td><td>设备直通给 Guest（Hypervisor 管理）</td></tr>
+          <tr><td class="mono">0b011</td><td>Stage 1 + Stage 2（嵌套）</td><td>VA → IPA → PA</td><td>Guest 内再跑 SVA / 双层虚拟化</td></tr>
+          <tr><td class="mono">0b000 / 0b110</td><td>Bypass</td><td>地址原样通过（不翻译）</td><td>调试 / 不需要隔离的设备</td></tr>
+          <tr><td class="mono">0b100 / 0b101 / 0b111</td><td>Abort</td><td>所有事务报错</td><td>禁用该设备 / 未配置默认状态</td></tr>
+        </table>
+      </div>
+
+      <div class="card ok">
+        <h4>✅ 记忆锚点</h4>
+        <p style="margin:6px 0"><code>StreamID → STE →（S1: SSID → CD → TTB0）+（S2: STE.S2TTB）→ 页表走查 → PA</code>。</p>
+        <p style="margin:6px 0;color:var(--muted)">把 SMMU 想象成一台“以设备为主语的 MMU”：<strong>STE 是设备级页表配置，CD 是进程级页表配置，二者共同决定用哪份页表、如何翻译、谁（ASID/VMID）隔离谁</strong>。</p>
+      </div>
+    </section>
+
+    <!-- ===================== 6 ===================== -->
+    <section id="sec-ste">
+      <h2><span class="num">06</span>Stream Table 与 STE 详解</h2>
+      <p class="lead">STE 是 SMMUv3 的“设备注册表”。每个 StreamID 一个 64 字节的 STE，软件负责在内存中维护，SMMU 按需缓存。</p>
+
+      <h3>Stream Table 的两种索引方式</h3>
+      <p>由 <code>STRTAB_BASE_CFG</code> 寄存器决定：</p>
+      <div class="grid cols2">
+        <div class="card">
+          <h4>线性（Linear）</h4>
+          <p style="font-size:14px">STE 地址 = <code>STRTAB_BASE + StreamID × 64</code>。简单直接，但表大小 = <code>2^SID_bits × 64</code>，SID 位宽大时浪费内存（如 20 位 SID = 64MB）。</p>
+        </div>
+        <div class="card">
+          <h4>二级（2-level）</h4>
+          <p style="font-size:14px">用 <code>STRTAB_BASE_CFG.SPLIT</code> 把 StreamID 分成 L1/L2 两段索引，L1 表指向 L2 子表，按需分配、节省内存。现代实现多用此方式。</p>
+        </div>
+      </div>
+
+      <h3>STE 关键字段（64 字节 = 4 × 128bit 字）</h3>
+      <div class="table-wrap">
+        <table>
+          <tr><th>字段</th><th>作用</th><th>说明</th></tr>
+          <tr><td class="mono">Config [2:0]</td><td>翻译行为选择</td><td>Bypass/Abort/S1/S2/S1+S2（见上表）</td></tr>
+          <tr><td class="mono">S1Fmt / S1ContextPtr</td><td>Stage 1 的 CD 表格式与基址</td><td>CD 表线性（默认）或 2 级；CD 表需 64 字节对齐</td></tr>
+          <tr><td class="mono">S1CDMax</td><td>CD 表最大条数</td><td>决定支持的 SubstreamID 数量（如 2^N）</td></tr>
+          <tr><td class="mono">S1STALLD / S1DSS</td><td>Stage 1 fault 处理策略</td><td>stall（阻塞重放）或 abort；默认 abort</td></tr>
+          <tr><td class="mono">S2TTB</td><td>Stage 2 页表基址</td><td>IPA 翻译表，物理地址</td></tr>
+          <tr><td class="mono">S2T0SZ / S2SL0</td><td>Stage 2 起始地址大小 / 起始层级</td><td>决定 IPA 位宽与走查起始 level</td></tr>
+          <tr><td class="mono">S2PS / S2TG</td><td>Stage 2 输出大小 / 页粒度</td><td>输出 PA 位宽；4K/16K/64K</td></tr>
+          <tr><td class="mono">S2AA64</td><td>Stage 2 使用 AArch64 页表</td><td>现代系统恒为 1</td></tr>
+          <tr><td class="mono">VMID</td><td>Stage 2 所属虚拟机 ID</td><td>TLB 打标 + 隔离多个 Guest</td></tr>
+          <tr><td class="mono">S2S / S2R</td><td>Stage 2 写回/重放策略</td><td>与 stall 语义相关</td></tr>
+          <tr><td class="mono">SHCFG / MemAttr / MTCFG / ALLOCCFG</td><td>内存属性（共享性/缓存）</td><td>与 PCIe No Snoop 位配合</td></tr>
+        </table>
+      </div>
+
+      <pre><span class="cm">// 简化示意：STE 的逻辑布局（非逐位精确，完整位域见 ARM IHI 0070 / Linux arm-smmu-v3.h）</span>
+struct ste {                     <span class="cm">// 64 bytes</span>
+    uint64_t word0;              <span class="cm">// Config[2:0], S1Fmt, S1CDMax, S1STALLD ...</span>
+    uint64_t word1;              <span class="cm">// S1ContextPtr[51:6]  (CD 表基址)</span>
+    uint64_t word2;              <span class="cm">// S2TTB[51:4], S2T0SZ, S2SL0, S2PS, S2TG, VMID ...</span>
+    uint64_t word3;              <span class="cm">// 属性 / 权限 / 保留</span>
+};</pre>
+
+      <div class="card grad">
+        <p style="margin:0"><strong>要点：</strong>STE 里的 <code>S1ContextPtr</code> 指向 CD 表、<code>S2TTB</code> 直接指向 Stage 2 页表。这意味着 <strong>Stage 2 是“设备级”的（一个设备属于一个 VM），Stage 1 是“子流级”的（一个设备里多个进程各自有页表）</strong>。</p>
+      </div>
+    </section>
+
+    <!-- ===================== 7 ===================== -->
+    <section id="sec-cd">
+      <h2><span class="num">07</span>Context Descriptor（CD）详解</h2>
+      <p class="lead">CD 描述“一个 SubstreamID 的 Stage 1 页表配置”，内容几乎与 CPU 的 <code>TTBR0_EL1/TTBR1_EL1/TCR_EL1</code> 语义一一对应。这是工程师最容易把 MMU 经验迁移过来的地方。</p>
+
+      <div class="table-wrap">
+        <table>
+          <tr><th>CD 字段</th><th>对应 CPU 概念</th><th>含义</th></tr>
+          <tr><td class="mono">TTB0 / TTB1</td><td><code>TTBR0_EL1 / TTBR1_EL1</code></td><td>用户/内核地址空间的页表基址</td></tr>
+          <tr><td class="mono">ASID</td><td><code>ASID</code></td><td>地址空间标识（16 位），用于 TLB 隔离与快速切换</td></tr>
+          <tr><td class="mono">T0SZ / T1SZ</td><td><code>T0SZ/T1SZ</code></td><td>TTB0/TTB1 覆盖的地址空间大小（64−T0SZ 位）</td></tr>
+          <tr><td class="mono">TG0 / TG1</td><td><code>TG0/TG1</code></td><td>页粒度：4K / 16K / 64K</td></tr>
+          <tr><td class="mono">SH0/SH1 / IRGN / ORGN</td><td>缓存属性</td><td>页表走查的内存属性（共享性、cache 策略）</td></tr>
+          <tr><td class="mono">EPD0 / EPD1</td><td><code>EPD0/EPD1</code></td><td>禁用 TTB0/TTB1 走查（enable walk disable）</td></tr>
+          <tr><td class="mono">AARCH64</td><td>—</td><td>页表格式为 AArch64（长描述符）</td></tr>
+        </table>
+      </div>
+
+      <pre><span class="cm">// 简化示意：CD 的逻辑布局（64 bytes）</span>
+struct cd {
+    uint64_t word0;   <span class="cm">// T0SZ, TG0, IRGN0, ORGN0, SH0, EPD0, AARCH64 ...</span>
+    uint64_t word1;   <span class="cm">// T1SZ, TG1, ...</span>
+    uint64_t word2;   <span class="cm">// TTB0[47:1]  (4K 粒度时 [47:12])</span>
+    uint64_t word3;   <span class="cm">// TTB1 + ASID[63:48]</span>
+};</pre>
+
+      <div class="card ok">
+        <p style="margin:0"><strong>为什么这很重要：</strong>CD 与 CPU 页表寄存器语义一致，意味着可以实现 <strong>SVA（Shared Virtual Address）</strong>——设备与 CPU 进程共享<strong>同一套页表</strong>，设备直接用进程的虚拟地址访问，缺页时由 PRI 上报、内核按需分配。这是 GPU 计算、DPDK、RDMA 高性能路径的基石。</p>
+      </div>
+    </section>
+
+    <!-- ===================== 8 ===================== -->
+    <section id="sec-stage">
+      <h2><span class="num">08</span>Stage 1 / Stage 2 地址翻译</h2>
+
+      <h3>8.1 Stage 1：VA → IPA（设备“进程页表”）</h3>
+      <p>Stage 1 由 CD 描述，把设备提供的虚拟地址（VA，用于 SVA 场景，或驱动分配的 IOVA 语义）翻译成<strong>中间物理地址 IPA</strong>。非虚拟化环境（Config=0b001）中，IPA 即最终 PA。</p>
+      <ul>
+        <li>走查起点：<code>CD.TTB0 / CD.TTB1</code>，由 VA 高位决定用哪个基址。</li>
+        <li>隔离：<code>ASID</code> 区分不同进程地址空间，TLB 条目带 ASID 标签。</li>
+        <li>权限：页表描述符里的 AP（Access Permissions）、XN、shareability、memory type 全部生效。</li>
+      </ul>
+
+      <h3>8.2 Stage 2：IPA → PA（Hypervisor“虚拟机页表”）</h3>
+      <p>Stage 2 由 STE 描述，把 Guest 视角的 IPA 翻译成真实 PA。这一层<strong>与 Guest 无关，完全由 Hypervisor 控制</strong>，用于设备直通时的内存隔离与映射。</p>
+      <ul>
+        <li>走查起点：<code>STE.S2TTB</code>，页表由 Hypervisor 维护。</li>
+        <li>隔离：<code>VMID</code> 区分不同 Guest。</li>
+        <li>关键差异：Stage 2 描述符<strong>没有 XN、没有 AP[1]（用户/内核）</strong>，只有读写权限（S2AP），因为它描述的是“物理机内存对虚拟机的授权”。</li>
+      </ul>
+
+      <h3>8.3 嵌套：VA → IPA → PA</h3>
+      <div class="diagram">
+        <svg viewBox="0 0 900 150" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,Segoe UI,sans-serif">
+          <defs><marker id="c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#7bc8ff"/></marker></defs>
+          <rect x="20" y="55" width="230" height="46" rx="9" fill="#1d2637" stroke="#33405f"/>
+          <text x="135" y="83" fill="#dbe2f0" font-size="14" text-anchor="middle" font-weight="700">VA（设备发出）</text>
+          <rect x="330" y="55" width="230" height="46" rx="9" fill="#16233a" stroke="#3ddc97"/>
+          <text x="445" y="78" fill="#3ddc97" font-size="13.5" text-anchor="middle" font-weight="700">Stage 1 走查</text>
+          <text x="445" y="94" fill="#8b98b5" font-size="11" text-anchor="middle">CD.TTB0 · ASID</text>
+          <rect x="640" y="55" width="240" height="46" rx="9" fill="#16233a" stroke="#b58cff"/>
+          <text x="760" y="78" fill="#b58cff" font-size="13.5" text-anchor="middle" font-weight="700">Stage 2 走查</text>
+          <text x="760" y="94" fill="#8b98b5" font-size="11" text-anchor="middle">STE.S2TTB · VMID</text>
+          <rect x="640" y="110" width="240" height="0" rx="0" fill="none"/>
+          <line x1="250" y1="78" x2="328" y2="78" stroke="#7bc8ff" stroke-width="2" marker-end="url(#c)"/>
+          <line x1="560" y1="78" x2="638" y2="78" stroke="#7bc8ff" stroke-width="2" marker-end="url(#c)"/>
+          <text x="290" y="70" fill="#3ddc97" font-size="11">IPA</text>
+          <text x="600" y="70" fill="#b58cff" font-size="11">PA</text>
+          <text x="762" y="132" fill="#3ddc97" font-size="14" text-anchor="middle" font-weight="700">PA（最终）</text>
+        </svg>
+        <div class="cap">图 3 · 嵌套翻译：Stage 1 产出 IPA 作为 Stage 2 的输入，两级都命中 TLB 或走查页表</div>
+      </div>
+    </section>
+
+    <!-- ===================== 9 ===================== -->
+    <section id="sec-walk">
+      <h2><span class="num">09</span>页表与走查（Page Table Walk）</h2>
+      <p class="lead">SMMU 与 CPU MMU <strong>共用 AArch64 转换表格式</strong>。理解页表走查的数学，是看懂性能、TLB、fault 的前提。</p>
+
+      <h3>9.1 粒度与层级参数</h3>
+      <div class="table-wrap">
+        <table>
+          <tr><th>粒度</th><th>页偏移位数</th><th>每级索引位数</th><th>层级数上限</th><th>最大输入地址（Stage1）</th></tr>
+          <tr class="hl"><td class="mono">4KB</td><td class="mono">12</td><td class="mono">9（512 项）</td><td class="mono">4</td><td>48 位（LPA2 52 位需 5 级）</td></tr>
+          <tr><td class="mono">16KB</td><td class="mono">14</td><td class="mono">11（2048 项）</td><td class="mono">4</td><td>52 位</td></tr>
+          <tr><td class="mono">64KB</td><td class="mono">16</td><td class="mono">13（8192 项）</td><td class="mono">4</td><td>52 位</td></tr>
+        </table>
+      </div>
+      <p class="footnote">每级表大小 = 粒度大小（如 4KB 表，8 字节描述符 → 512 项 → 9 位索引）。层级数 = ⌈(输入地址宽度 − 页偏移位数) / 每级索引位数⌉；起始层级由 <code>T0SZ/S2SL0</code> 决定。</p>
+
+      <h3>9.2 4KB 粒度 · 48 位 · 4 级走查（最常用，逐位拆解）</h3>
+      <div class="diagram">
+        <svg viewBox="0 0 960 150" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace,monospace">
+          <defs><marker id="d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#7bc8ff"/></marker></defs>
+          <text x="20" y="28" fill="#8b98b5" font-size="12">VA[47:0]（48 位）</text>
+          <rect x="20" y="38" width="90" height="34" fill="#4da3ff" opacity=".85"/><text x="65" y="60" fill="#fff" font-size="12" text-anchor="middle">L0 idx</text>
+          <rect x="110" y="38" width="90" height="34" fill="#7bc8ff" opacity=".7"/><text x="155" y="60" fill="#04121f" font-size="12" text-anchor="middle">L1 idx</text>
+          <rect x="200" y="38" width="90" height="34" fill="#b58cff" opacity=".7"/><text x="245" y="60" fill="#fff" font-size="12" text-anchor="middle">L2 idx</text>
+          <rect x="290" y="38" width="90" height="34" fill="#3ddc97" opacity=".7"/><text x="335" y="60" fill="#04121f" font-size="12" text-anchor="middle">L3 idx</text>
+          <rect x="380" y="38" width="130" height="34" fill="#ffb454" opacity=".75"/><text x="445" y="60" fill="#04121f" font-size="12" text-anchor="middle">offset[11:0]</text>
+          <text x="65" y="88" fill="#8b98b5" font-size="11" text-anchor="middle">[47:39]</text>
+          <text x="155" y="88" fill="#8b98b5" font-size="11" text-anchor="middle">[38:30]</text>
+          <text x="245" y="88" fill="#8b98b5" font-size="11" text-anchor="middle">[29:21]</text>
+          <text x="335" y="88" fill="#8b98b5" font-size="11" text-anchor="middle">[20:12]</text>
+          <text x="445" y="88" fill="#8b98b5" font-size="11" text-anchor="middle">[11:0]</text>
+          <text x="560" y="60" fill="#8b98b5" font-size="12">→ TTBR → L0 → L1 → L2 → L3 → 页</text>
+          <line x1="512" y1="55" x2="700" y2="55" stroke="#7bc8ff" stroke-width="2" marker-end="url(#d)"/>
+        </svg>
+        <div class="cap">图 4 · 4KB 粒度 4 级走查的 VA 位域划分（每级 9 位索引 + 12 位页内偏移 = 48 位）</div>
+      </div>
+
+      <h3>9.3 页表描述符（长描述符）关键位</h3>
+      <div class="table-wrap">
+        <table>
+          <tr><th>字段</th><th>含义</th></tr>
+          <tr><td class="mono">bits[1:0]</td><td>描述符类型：0b11 = 有效（Table/Block/Page）</td></tr>
+          <tr><td class="mono">Table（bits[1:0]=11, bit[1]=1 且非 block/page）</td><td>指向下一级表的物理地址（基址按粒度对齐）</td></tr>
+          <tr><td class="mono">Block / Page</td><td>叶子：给出输出地址高位（+ offset = 最终地址）</td></tr>
+          <tr><td class="mono">AF（Access Flag）</td><td>访问位；未置位时触发 Access Flag fault（用于 demand paging / 老化）</td></tr>
+          <tr><td class="mono">AP / S2AP</td><td>访问权限（Stage1 有 RW/只读/用户；Stage2 为 RW）</td></tr>
+          <tr><td class="mono">SH / AttrIndx</td><td>内存共享性 / 缓存属性索引（映射到 MAIR）</td></tr>
+          <tr><td class="mono">XN / UXN / PXN</td><td>不可执行位（Stage1）</td></tr>
+          <tr><td class="mono">nG</td><td>非全局位（Stage1，跨 ASID 是否可共享 TLB 条目）</td></tr>
+          <tr><td class="mono">DBM（Dirty Bit Modifier）</td><td>硬件脏位更新（LPA2 相关）</td></tr>
+        </table>
+      </div>
+
+      <div class="card grad">
+        <h4>🧮 交互式走查计算器（4KB · 48 位）</h4>
+        <p style="font-size:14px;color:var(--muted)">输入一个 48 位以内的十六进制 VA，拆解其各级索引与页内偏移，直观感受“地址 → 页表路径”。</p>
+        <div class="calc">
+          <span>VA = 0x</span>
+          <input type="text" id="vaInput" value="0000_0040_1000" style="width:200px" placeholder="如 0000_0040_1000">
+          <button class="btn primary" id="vaCalc">拆解</button>
+        </div>
+        <div class="calc-output" id="vaOutput"></div>
+
+        <h4>🧮 通用层级计算器</h4>
+        <div class="calc">
+          <span>输入地址宽度</span>
+          <select id="gBits"><option value="39">39</option><option value="48" selected>48</option><option value="52">52</option></select>
+          <span>粒度</span>
+          <select id="gGran">
+            <option value="4">4KB</option>
+            <option value="16">16KB</option>
+            <option value="64">64KB</option>
+          </select>
+          <button class="btn primary" id="levelCalc">计算</button>
+        </div>
+        <div class="calc-output" id="levelOutput"></div>
+      </div>
+    </section>
+
+    <!-- ===================== 10 ===================== -->
+    <section id="sec-cache">
+      <h2><span class="num">10</span>TLB / ATC 缓存与维护</h2>
+      <p class="lead">页表走查昂贵（一次可能 4 次内存访问），因此 SMMU 内部有 TLB，设备侧有 ATC。缓存一致性由“失效（invalidate）命令”维护。</p>
+
+      <h3>10.1 三级缓存层次</h3>
+      <div class="grid cols3">
+        <div class="card"><h4>① 设备侧 ATC</h4><p style="font-size:14px">设备本地缓存 VA→PA，通过 <strong>ATS</strong> 协议向 SMMU 请求翻译、接收失效。离设备最近、命中最快。</p></div>
+        <div class="card"><h4>② SMMU TLB</h4><p style="font-size:14px">SMMU 内部缓存翻译，条目带 <strong>ASID / VMID</strong> 标签。分 stage-1-only、stage-2-only、nested 条目。</p></div>
+        <div class="card"><h4>③ Walk Cache</h4><p style="font-size:14px">缓存页表走查的中间节点（各级表项），加速重复走查。</p></div>
+      </div>
+
+      <h3>10.2 缓存失效命令（CMDQ）</h3>
+      <p>软件修改页表 / STE / CD 后，必须发对应失效命令，顺序通过命令队列保证。</p>
+      <div class="table-wrap">
+        <table>
+          <tr><th>命令</th><th>作用</th><th>典型触发时机</th></tr>
+          <tr><td class="mono">CMD_CFGI_STE / CFGI_STE_RANGE</td><td>失效 SMMU 缓存的 STE</td><td>修改设备 STE 配置后</td></tr>
+          <tr><td class="mono">CMD_CFGI_CD / CFGI_CD_ALL</td><td>失效缓存的 CD</td><td>修改某进程 CD 后</td></tr>
+          <tr><td class="mono">CMD_CFGI_ALL</td><td>失效全部配置缓存</td><td>粗粒度全局失效</td></tr>
+          <tr><td class="mono">CMD_TLBI_NH_VA / TLBI_NH_ASID</td><td>按 VA / ASID 失效 Stage1 条目</td><td>进程页表 unmap 后</td></tr>
+          <tr><td class="mono">CMD_TLBI_S2_IPA</td><td>按 IPA 失效 Stage2 条目</td><td>Hypervisor 改 Stage2 映射</td></tr>
+          <tr><td class="mono">CMD_TLBI_S12_VMALL</td><td>失效某 VMID 的所有嵌套条目</td><td>VM 整体失效</td></tr>
+          <tr><td class="mono">CMD_ATC_INV</td><td>失效设备侧 ATC</td><td>同步远端设备缓存</td></tr>
+          <tr><td class="mono">CMD_PRI_RESP / CMD_RESUME</td><td>响应 PRI / 恢复 stall 的事务</td><td>缺页处理完成后</td></tr>
+        </table>
+      </div>
+
+      <div class="card warn">
+        <h4>⚠️ 经典 bug 模式</h4>
+        <p style="margin:6px 0">修改了页表/STE/CD 却<strong>忘记发失效命令</strong>，导致 SMMU TLB 或设备 ATC 仍用旧翻译 —— 表现为<strong>偶发数据错乱 / 访问到已释放的内存</strong>。Linux 的 <code>iommu_map/unmap</code> 会在背后正确完成 flush，但自研裸机/BSP 代码必须显式处理。</p>
+      </div>
+    </section>
+
+    <!-- ===================== 11 ===================== -->
+    <section id="sec-queue">
+      <h2><span class="num">11</span>命令 / 事件 / PRI 队列</h2>
+      <p class="lead">SMMUv3 用<strong>内存中的环形队列</strong>与软件交互（而非大量 MMIO 寄存器）。理解三队列是理解驱动实现的关键。</p>
+
+      <div class="grid cols3">
+        <div class="card grad">
+          <h4>命令队列 CMDQ</h4>
+          <p style="font-size:14px">软件 → SMMU 的<strong>控制通道</strong>。软件写入命令（16 字节/条），更新 PROD 指针；SMMU 消费并更新 CONS。命令包括 TLBI、CFGI、ATC_INV、PRI_RESP 等。</p>
+        </div>
+        <div class="card err">
+          <h4>事件队列 EVENTQ</h4>
+          <p style="font-size:14px">SMMU → 软件的<strong>错误/事件上报</strong>（32 字节/条）。包括 STE/CD 获取错误、翻译 fault、权限 fault、不可恢复错误等，配合中断通知软件。</p>
+        </div>
+        <div class="card warn">
+          <h4>PRI 队列 PRIQ</h4>
+          <p style="font-size:14px">设备 → SMMU → 软件的<strong>缺页请求</strong>（16 字节/条）。设备遇缺页时经 PRI 上报，软件分配页、更新页表后用 <code>CMD_PRI_RESP</code> 回应，实现<strong>按需分页</strong>。</p>
+        </div>
+      </div>
+
+      <h3>队列环形结构</h3>
+      <pre><span class="cm">// 环形队列：BASE 指向队列基址，PROD/CONS 为生产者/消费者下标</span>
+      BASE  +----+----+----+----+ ...
+            | cmd| cmd| cmd|    |     <span class="cm">← 软件写 PROD，SMMU 读 CONS</span>
+            +----+----+----+----+
+  PROD ──> 待写入位置           CONS ──> 待消费位置</pre>
+
+      <h3>事件类型速查</h3>
+      <div class="table-wrap">
+        <table>
+          <tr><th>事件</th><th>含义</th></tr>
+          <tr><td class="mono">EVT_C_BAD_STREAMID</td><td>StreamID 无有效 STE（越界）</td></tr>
+          <tr><td class="mono">EVT_C_BAD_STE / C_BAD_CD</td><td>STE / CD 配置非法或获取失败</td></tr>
+          <tr><td class="mono">EVT_F_TRANSLATION</td><td>页表走查翻译失败（如缺映射）</td></tr>
+          <tr><td class="mono">EVT_F_ADDR_SIZE</td><td>地址超出范围（如 VA 位宽超 T0SZ）</td></tr>
+          <tr><td class="mono">EVT_F_ACCESS / F_PERMISSION</td><td>AF=0 / 权限不足（读写越权）</td></tr>
+          <tr><td class="mono">EVT_F_UUT</td><td>不可恢复 / 不支持的事务</td></tr>
+          <tr><td class="mono">EVT_F_WALK_EABT</td><td>页表走查本身发生外部 abort</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===================== 12 ===================== -->
+    <section id="sec-regs">
+      <h2><span class="num">12</span>寄存器与编程模型</h2>
+      <p class="lead">SMMUv3 把大量状态放进内存结构，MMIO 寄存器只负责“入口”：指向 Stream Table 与各队列、控制使能、上报全局错误。</p>
+
+      <h3>12.1 核心寄存器（SMMUv3，偏移为基址内偏移）</h3>
+      <div class="table-wrap">
+        <table>
+          <tr><th>寄存器</th><th>偏移</th><th>作用</th></tr>
+          <tr><td class="mono">IDR0–IDR5</td><td class="mono">0x00–0x14</td><td>识别寄存器：支持的 Stage、SID 位宽、队列支持等</td></tr>
+          <tr><td class="mono">CR0</td><td class="mono">0x20</td><td>全局使能：SMMUEN、CMDQEN、EVENTQEN、PRIQEN、ATSCHK 等</td></tr>
+          <tr><td class="mono">CR1 / CR2</td><td class="mono">0x28 / 0x30</td><td>队列属性 / 附加控制</td></tr>
+          <tr><td class="mono">STATUSR</td><td class="mono">0x40</td><td>状态寄存器</td></tr>
+          <tr><td class="mono">GERROR / GERRORN</td><td class="mono">0x70 / 0x74</td><td>全局错误 / 错误类型</td></tr>
+          <tr><td class="mono">STRTAB_BASE / _CFG</td><td class="mono">0x80 / 0x88</td><td>Stream Table 基址 / 索引方式（SPLIT）</td></tr>
+          <tr><td class="mono">CMDQ_BASE / PROD / CONS</td><td class="mono">0x90 / 0x98 / 0x9C</td><td>命令队列基址 / 生产 / 消费指针</td></tr>
+          <tr><td class="mono">EVENTQ_BASE / PROD / CONS</td><td class="mono">0xA0 / 0xA8 / 0xAC</td><td>事件队列基址 / 指针</td></tr>
+          <tr><td class="mono">PRIQ_BASE / PROD / CONS</td><td class="mono">0xB0 / 0xB8 / 0xBC</td><td>PRI 队列基址 / 指针</td></tr>
+        </table>
+      </div>
+      <p class="footnote">精确偏移以 <strong>ARM IHI 0070（SMMUv3 架构规范）</strong>与具体 SoC 手册为准；上表为通用 SMMUv3 布局。</p>
+
+      <h3>12.2 初始化序列（典型）</h3>
+      <pre><span class="cm">// 1. 读 IDR0..5，确认能力（SID 位宽、Stage 支持、队列支持）</span>
+<span class="cm">// 2. 分配并清零 Stream Table（按 SPLIT 决定线性/二级）</span>
+write(STRTAB_BASE,   st_tbl_pa);
+write(STRTAB_BASE_CFG, splite_cfg);
+<span class="cm">// 3. 分配命令/事件/PRI 队列内存，写 BASE，初始化 PROD/CONS=0</span>
+write(CMDQ_BASE, cmdq_pa);   write(CMDQ_PROD, 0); write(CMDQ_CONS, 0);
+write(EVENTQ_BASE, evtq_pa);  ...
+write(PRIQ_BASE, priq_pa);    ...
+<span class="cm">// 4. 使能队列与 SMMU</span>
+write(CR0, CR0.CMDQEN | CR0.EVENTQEN | CR0.PRIQEN | CR0.SMMUEN);
+<span class="cm">// 5. 初始化各设备的 STE（Bypass → 配置翻译），发 CMD_CFGI_STE</span>
+<span class="cm">// 6. 挂接中断，处理 EVENTQ 上报的 fault</span></pre>
+
+      <h3>12.3 Fault 处理流程</h3>
+      <div class="card">
+        <ol style="margin:6px 0">
+          <li>事务触发 fault → SMMU 把事件写入 EVENTQ，更新 PROD，触发中断（若使能）。</li>
+          <li>软件读 CONS，解析事件类型与地址（STE/CD 错误 or 翻译/权限错误）。</li>
+          <li>可恢复 fault：修复页表（如分配页）→ 发 <code>CMD_TLBI_*</code> 失效 → 恢复事务。</li>
+          <li>不可恢复 fault：记录日志、复位/隔离设备（如把 STE 置为 Abort）。</li>
+          <li>更新 CONS，处理下一个事件。</li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ===================== 13 ===================== -->
+    <section id="sec-linux">
+      <h2><span class="num">13</span>Linux 内核实现（实战视角）</h2>
+      <p class="lead">Linux 主线的 SMMUv3 驱动位于 <code>drivers/iommu/arm/arm-smmu-v3/</code>，通过 <strong>IOMMU API</strong> 暴露统一接口。理解它能把前面的理论落到代码。</p>
+
+      <h3>13.1 代码结构</h3>
+      <div class="table-wrap">
+        <table>
+          <tr><th>文件</th><th>职责</th></tr>
+          <tr><td class="mono">arm-smmu-v3.c</td><td>SMMUv3 主驱动：寄存器、队列、命令、中断、fault 处理</td></tr>
+          <tr><td class="mono">arm-smmu-v3.h</td><td>STE / CD / 命令 / 事件 / PRI 的位域定义（权威参考）</td></tr>
+          <tr><td class="mono">io-pgtable.c / io-pgtable-arm.c</td><td>AArch64 页表实现（与 CPU 共享格式），供 SMMU 走查</td></tr>
+          <tr><td class="mono">iommu.c（core）</td><td>IOMMU 框架：<code>iommu_ops</code>、<code>iommu_group</code>、<code>iommu_domain</code></td></tr>
+        </table>
+      </div>
+
+      <h3>13.2 关键抽象</h3>
+      <div class="grid cols3">
+        <div class="card"><h4>iommu_group</h4><p style="font-size:14px">一组共享同一 StreamID/隔离域的设备（如同一 PCIe 多功能设备）。IOMMU 隔离的最小单位。</p></div>
+        <div class="card"><h4>iommu_domain</h4><p style="font-size:14px">一份页表 / 地址空间的抽象，对应一个 STE（及其 CD 集合）。</p></div>
+        <div class="card"><h4>iommu_ops</h4><p style="font-size:14px">驱动注册的回调：<code>map/unmap/iova_to_phys/attach_dev/detach_dev</code> 等。</p></div>
+      </div>
+
+      <h3>13.3 设备树 / ACPI 中的 SMMU 描述</h3>
+      <pre><span class="cm">// 设备树示例（简化）</span>
+smmu@8000000 {
+    compatible = <span class="st">"arm,smmu-v3"</span>;
+    reg = &lt;0x0 0x8000000 0x0 0x100000&gt;;
+    interrupts = &lt;GIC_SPI 200 IRQ_TYPE_LEVEL_HIGH&gt;;
+    <span class="cm">#iommu-cells</span> = &lt;1&gt;;   <span class="cm">// 设备侧用 iommus = &lt;&amp;smmu STREAMID&gt; 引用</span>
+};
+pcie@60000000 {
+    ...
+    iommus = &lt;&amp;smmu 0x88&gt;;   <span class="cm">// 该 PCIe 设备绑定 StreamID 0x88</span>
+};</pre>
+      <p class="footnote">ACPI 体系下由 <strong>IORT（I/O Remapping Table）</strong> 描述 SMMU 与设备 StreamID 的映射关系。</p>
+
+      <h3>13.4 一次 DMA 映射的内核路径（简化）</h3>
+      <pre>dma_map_single(dev, cpu_addr, size, dir)
+  → iommu_dma_map_page()
+    → alloc_iova()                    <span class="cm">// 分配连续 IOVA</span>
+    → iommu_map(domain, iova, pa, ...) <span class="cm">// 更新页表</span>
+      → arm_smmu_map()                <span class="cm">// 走 io-pgtable 更新 AArch64 页表</span>
+      → arm_smmu_tlb_inv_range()      <span class="cm">// 发 CMD_TLBI_* 失效缓存</span></pre>
+
+      <div class="card ok">
+        <h4>✅ 动手验证建议</h4>
+        <p style="margin:6px 0">在 Linux 板卡上运行 <code>cat /sys/kernel/iommu_groups/*/devices/*</code> 观察设备分组；用 <code>dmesg | grep -i smmu</code> 看 SMMU 探测日志；在 <code>arm_smmu_event</code> / perf 中观察 TLB miss 与翻译 fault 计数。</p>
+      </div>
+    </section>
+
+    <!-- ===================== 14 ===================== -->
+    <section id="sec-perf">
+      <h2><span class="num">14</span>调试与性能</h2>
+
+      <h3>14.1 常见故障排查清单</h3>
+      <div class="table-wrap">
+        <table>
+          <tr><th>现象</th><th>可能原因</th><th>排查手段</th></tr>
+          <tr><td>设备 DMA 数据错乱 / 读到旧数据</td><td>页表/STE/CD 修改后未失效 TLB/ATC</td><td>检查 <code>CMD_TLBI/ATC_INV</code> 是否缺失</td></tr>
+          <tr><td>设备直通后 Guest 崩溃</td><td>Stage2 映射或 VMID 配置错误</td><td>看 EVENTQ 的 F_TRANSLATION / F_PERMISSION</td></tr>
+          <tr><td>开机即 fault</td><td>StreamID 未映射 / STE 默认 Abort</td><td>检查 IORT/DT 的 <code>iommus</code> 配置</td></tr>
+          <tr><td>DMA 性能差</td><td>TLB miss 率高 / 页粒度过小 / 缓存属性错误</td><td>perf 统计 TLB miss，检查 MAIR/共享性配置</td></tr>
+          <tr><td>PRI 缺页卡死</td><td>PRI 响应未发 / stall 未 resume</td><td>检查 <code>CMD_PRI_RESP / CMD_RESUME</code></td></tr>
+        </table>
+      </div>
+
+      <h3>14.2 性能要点</h3>
+      <ul>
+        <li><strong>大页（huge page）</strong>：用 2MB/1GB 映射降低走查层级与 TLB 压力。</li>
+        <li><strong>页表走查缓存属性</strong>：走查本身的内存也要正确配置 cacheable，否则走查极慢。</li>
+        <li><strong>ATS</strong>：启用设备侧 ATC 可显著降低 SMMU TLB 压力，但需正确维护失效。</li>
+        <li><strong>队列深度与中断合并</strong>：CMDQ/EVENTQ 深度与中断节流影响吞吐。</li>
+        <li><strong>减少 flush</strong>：批量化 <code>map/unmap</code>，用 range 型失效命令。</li>
+      </ul>
+    </section>
+
+    <!-- ===================== 15 ===================== -->
+    <section id="sec-pitfalls">
+      <h2><span class="num">15</span>常见误区与易错点</h2>
+      <div class="grid cols2">
+        <div class="card err">
+          <h4>① 把 StreamID 当成“设备编号”随意分配</h4>
+          <p style="font-size:14px">StreamID 必须与系统拓扑（PCIe RID / IORT）一致，否则设备会命中错误的 STE。它本质是“事务请求者的路由身份”。</p>
+        </div>
+        <div class="card err">
+          <h4>② 混淆 Stage 1 与 Stage 2 的地址语义</h4>
+          <p style="font-size:14px">Stage 1 输入是 VA、输出 IPA；Stage 2 输入 IPA、输出 PA。嵌套时中间是 IPA，不是“两次 PA”。</p>
+        </div>
+        <div class="card err">
+          <h4>③ 认为 Bypass 是安全的默认值</h4>
+          <p style="font-size:14px">Bypass 让设备直通物理地址，等于无隔离。生产环境默认应为 <strong>Abort</strong>，只有明确信任的设备才 Bypass。</p>
+        </div>
+        <div class="card err">
+          <h4>④ 忘记缓存失效的“范围与顺序”</h4>
+          <p style="font-size:14px">不仅要失效 SMMU TLB，还要失效<strong>设备侧 ATC</strong>（<code>CMD_ATC_INV</code>），并保证命令按序生效。</p>
+        </div>
+        <div class="card err">
+          <h4>⑤ 页表与 CPU 不共享时属性不一致</h4>
+          <p style="font-size:14px">设备与 CPU 对同一物理页的内存属性（cacheable/shareable）不一致会导致 coherency 问题。</p>
+        </div>
+        <div class="card err">
+          <h4>⑥ 忽略 Stage 2 无“用户态”概念</h4>
+          <p style="font-size:14px">Stage 2 描述符只有读写权限（S2AP），没有 XN 与用户/内核区分——它表达的是 Hypervisor 对 Guest 的授权。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 16 ===================== -->
+    <section id="sec-quiz">
+      <h2><span class="num">16</span>自测与练习</h2>
+      <p class="lead">完成后点击“交卷”，检验是否真正掌握。每题都有解析。</p>
+      <div class="quiz-score" id="quizScore" style="display:none"></div>
+      <div id="quiz"></div>
+      <div style="text-align:center;margin:20px 0">
+        <button class="btn primary" id="quizSubmit" style="padding:11px 28px;font-size:15px">交卷评分</button>
+        <button class="btn" id="quizReset" style="padding:11px 20px">重做</button>
+      </div>
+
+      <h3>掌握度自查清单</h3>
+      <p style="color:var(--muted);font-size:14px">勾选你能“不看笔记独立讲清楚”的条目（进度保存在本浏览器）。</p>
+      <div class="checklist" id="checklist"></div>
+    </section>
+
+    <!-- ===================== 17 ===================== -->
+    <section id="sec-ref">
+      <h2><span class="num">17</span>参考资源</h2>
+      <ul class="ref">
+        <li><strong>ARM SMMUv3 架构规范</strong>：IHI 0070（System Memory Management Unit Architecture Specification）—— 最权威的位域与行为定义。</li>
+        <li><strong>ARM 架构参考手册（ARM ARM）</strong>：DDI 0487，第 D5 章（AArch64 地址翻译）—— 页表走查、描述符位域。</li>
+        <li><strong>Linux 内核源码</strong>：<code>drivers/iommu/arm/arm-smmu-v3/</code>、<code>drivers/iommu/io-pgtable-arm.c</code> —— STE/CD/命令/事件位域与驱动实现。</li>
+        <li><strong>PCIe 规范</strong>：ATS（Address Translation Services）、PRI（Page Request Interface）、PASID 章节。</li>
+        <li><strong>Intel VT-d 规范</strong>：用于对照 IOMMU 概念（Root Table / Context Entry / PASID）。</li>
+      </ul>
+      <div class="card grad" style="margin-top:20px">
+        <h4>🎯 最终检验标准（“完全掌握”的标志）</h4>
+        <p style="margin:6px 0">你能独立回答：① 一个 PCIe 设备发起的 DMA 事务如何一步步走到物理内存？② 如何让该设备安全直通给一个 VM？③ 如何支持该设备使用某进程的虚拟地址（SVA）？④ 修改页表后为何要、以及要发哪些失效命令？⑤ 一个翻译 fault 从发生到被内核处理的完整链路是什么？——若都能答出，即已掌握 SMMU。</p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<button class="backtop" id="backTop" title="回到顶部">↑</button>
+
+<script>
+(function(){
+  'use strict';
+  const $ = (s,el=document)=>el.querySelector(s);
+  const $$ = (s,el=document)=>Array.from(el.querySelectorAll(s));
+  const store = {
+    get(k,d){ try{ const v=localStorage.getItem(k); return v===null?d:JSON.parse(v);}catch(e){return d;} },
+    set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+  };
+
+  /* ---------- theme ---------- */
+  const theme = store.get('smmu-theme','dark');
+  document.body.dataset.theme = theme;
+  $('#themeBtn').textContent = theme==='dark' ? '☀️ 浅色' : '🌙 深色';
+  $('#themeBtn').addEventListener('click',()=>{
+    const t = document.body.dataset.theme==='dark' ? 'light':'dark';
+    document.body.dataset.theme = t;
+    store.set('smmu-theme', t);
+    $('#themeBtn').textContent = t==='dark' ? '☀️ 浅色' : '🌙 深色';
+  });
+
+  /* ---------- build TOC ---------- */
+  const sections = $$('section[id]');
+  const toc = $('#toc');
+  sections.forEach(sec=>{
+    const h2 = sec.querySelector('h2');
+    const a = document.createElement('a');
+    a.href = '#'+sec.id;
+    a.textContent = h2 ? h2.textContent.replace(/^\d+\s*/,'') : sec.id;
+    a.dataset.target = sec.id;
+    toc.appendChild(a);
+    // subsection links
+    $$('h3',sec).forEach(h3=>{
+      if(!h3.id) return;
+      const b = document.createElement('a');
+      b.href='#'+h3.id; b.className='lvl2'; b.textContent=h3.textContent; b.dataset.target=sec.id;
+      toc.appendChild(b);
+    });
+  });
+
+  /* ---------- scroll spy ---------- */
+  const links = $$('#toc a');
+  function spy(){
+    let cur = sections[0].id;
+    for(const sec of sections){
+      if(sec.getBoundingClientRect().top <= 120) cur = sec.id;
+    }
+    links.forEach(a=>a.classList.toggle('active', a.dataset.target===cur));
+  }
+  window.addEventListener('scroll', spy, {passive:true});
+  spy();
+
+  /* ---------- mobile sidebar ---------- */
+  const sb = $('#sidebar');
+  $('#menuToggle').addEventListener('click',()=>sb.classList.toggle('open'));
+  links.forEach(a=>a.addEventListener('click',()=>sb.classList.remove('open')));
+
+  /* ---------- back to top ---------- */
+  const bt = $('#backTop');
+  window.addEventListener('scroll',()=>bt.classList.toggle('show', window.scrollY>600));
+  bt.addEventListener('click',()=>window.scrollTo({top:0,behavior:'smooth'}));
+
+  /* ---------- search ---------- */
+  const searchBox = $('#searchBox');
+  const bodyTextCache = new Map();
+  function textOf(sec){
+    if(!bodyTextCache.has(sec)) bodyTextCache.set(sec, (sec.innerText||'').toLowerCase());
+    return bodyTextCache.get(sec);
+  }
+  searchBox.addEventListener('input',()=>{
+    const q = searchBox.value.trim().toLowerCase();
+    sections.forEach(sec=>{
+      const hit = !q || textOf(sec).includes(q);
+      sec.style.display = hit ? '' : 'none';
+      if(q){
+        // also mark matches
+        const m = sec.querySelectorAll('mark'); m.forEach(x=>{const p=x.parentNode; p.replaceChild(document.createTextNode(x.textContent),x); p.normalize();});
+      }
+    });
+    if(q){
+      sections.forEach(sec=>{
+        if(sec.style.display==='none') return;
+        highlight(sec, q);
+      });
+    }
+  });
+  function highlight(sec,q){
+    const walker = document.createTreeWalker(sec, NodeFilter.SHOW_TEXT, {
+      acceptNode(n){
+        if(!n.nodeValue || !n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+        if(n.parentNode.closest('script,style,code,pre,mark,input,textarea,summary')) return NodeFilter.FILTER_REJECT;
+        return n.nodeValue.toLowerCase().includes(q) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+      }
+    });
+    const hits=[];
+    while(walker.nextNode()) hits.push(walker.currentNode);
+    hits.slice(0,40).forEach(node=>{
+      const idx = node.nodeValue.toLowerCase().indexOf(q);
+      if(idx<0) return;
+      const range = document.createRange();
+      range.setStart(node, idx); range.setEnd(node, idx+q.length);
+      try{
+        const mark = document.createElement('mark');
+        range.surroundContents(mark);
+      }catch(e){}
+    });
+  }
+
+  /* ---------- expand / collapse all details ---------- */
+  $('#expandBtn').addEventListener('click',()=>{
+    const details = $$('details');
+    const anyClosed = details.some(d=>!d.open);
+    details.forEach(d=>d.open = anyClosed);
+    $('#expandBtn').textContent = anyClosed ? '收起全部' : '展开全部';
+  });
+
+  /* ---------- copy buttons ---------- */
+  $$('pre').forEach(pre=>{
+    const btn = document.createElement('button');
+    btn.className='copy-btn'; btn.textContent='复制';
+    btn.addEventListener('click',()=>{
+      const txt = pre.innerText;
+      navigator.clipboard?.writeText(txt).then(()=>{btn.textContent='已复制';setTimeout(()=>btn.textContent='复制',1200);});
+    });
+    pre.appendChild(btn);
+  });
+
+  /* ---------- page walk calculator (4KB, 48-bit) ---------- */
+  function calcWalk(){
+    const out = $('#vaOutput');
+    let raw = $('#vaInput').value.replace(/[^0-9a-fA-F]/g,'');
+    if(!raw){ out.innerHTML='<span style="color:var(--red)">请输入十六进制 VA</span>'; return; }
+    const va = BigInt('0x'+raw);
+    if(va > 0xffffffffffffn){ out.innerHTML='<span style="color:var(--red)">超过 48 位（>0xFFFFFFFFFFFF）</span>'; return; }
+    const l0 = Number((va>>39n)&0x1ffn);
+    const l1 = Number((va>>30n)&0x1ffn);
+    const l2 = Number((va>>21n)&0x1ffn);
+    const l3 = Number((va>>12n)&0x1ffn);
+    const off = Number(va&0xfffn);
+    const hex=(n,w)=>n.toString(16).toUpperCase().padStart(w,'0');
+    out.innerHTML =
+      `<div style="margin:4px 0;color:var(--muted)">输入 VA = 0x${hex(Number(va),12)}</div>`+
+      `<div class="step"><span class="pill hot">L0 索引</span><span class="pill">VA[47:39] = 0x${hex(l0,3)}</span> → 指向 L1 表</div>`+
+      `<div class="step"><span class="pill hot">L1 索引</span><span class="pill">VA[38:30] = 0x${hex(l1,3)}</span> → 指向 L2 表</div>`+
+      `<div class="step"><span class="pill hot">L2 索引</span><span class="pill">VA[29:21] = 0x${hex(l2,3)}</span> → 指向 L3 表</div>`+
+      `<div class="step"><span class="pill hot">L3 索引</span><span class="pill">VA[20:12] = 0x${hex(l3,3)}</span> → 找到 4KB 页</div>`+
+      `<div class="step"><span class="pill hot">页内偏移</span><span class="pill">VA[11:0] = 0x${hex(off,3)}</span> → 最终字节</div>`;
+  }
+  $('#vaCalc').addEventListener('click', calcWalk);
+  $('#vaInput').addEventListener('keydown',e=>{ if(e.key==='Enter') calcWalk(); });
+  calcWalk();
+
+  /* ---------- level calculator ---------- */
+  function calcLevel(){
+    const bits = parseInt($('#gBits').value,10);
+    const gran = parseInt($('#gGran').value,10);
+    const map = {4:{off:12,idx:9},16:{off:14,idx:11},64:{off:16,idx:13}};
+    const {off,idx} = map[gran];
+    const levels = Math.ceil((bits-off)/idx);
+    const maxVA = levels*idx + off;
+    $('#levelOutput').innerHTML =
+      `<div style="margin:4px 0">粒度 ${gran}KB：页偏移 ${off} 位，每级索引 ${idx} 位</div>`+
+      `<div style="margin:4px 0">${bits} 位输入地址需要 <span class="pill hot">${levels}</span> 级走查（含页偏移共覆盖 ${maxVA} 位；起始层级由 T0SZ/S2SL0 决定）</div>`;
+  }
+  $('#levelCalc').addEventListener('click', calcLevel);
+  calcLevel();
+
+  /* ---------- quiz ---------- */
+  const quiz = [
+    {q:'SMMU 最核心的作用是什么？',
+     opts:['把设备的 DMA 地址（IOVA/VA）翻译成物理地址，并强制访问隔离','提高 CPU 的指令执行速度','为设备分配 DMA 缓冲区','替代 PCIe 的总线仲裁'],
+     ans:0, exp:'SMMU 是 IOMMU：为 DMA 设备做地址翻译 + 访问隔离，类比“设备路径上的 MMU”。'},
+    {q:'PCIe 设备的 Requestor ID（BDF）在 SMMU 中通常映射为什么？',
+     opts:['SubstreamID / PASID','StreamID','VMID','ASID'],
+     ans:1, exp:'BDF（16 位 RID）由 Root Complex 转成 StreamID；PASID 对应 SubstreamID。'},
+    {q:'STE.Config = 0b011 表示什么翻译模式？',
+     opts:['仅 Stage 1','仅 Stage 2','Stage 1 + Stage 2（嵌套）','Bypass'],
+     ans:2, exp:'0b011 = 嵌套：VA→IPA（Stage1）再 IPA→PA（Stage2）。'},
+    {q:'在 SMMUv3 中，一个 StreamID 的 STE 存放于内存中的哪个位置（线性表）？',
+     opts:['STRTAB_BASE + StreamID × 64','S1ContextPtr + StreamID × 64','CMDQ_BASE + StreamID','TTBR0 + StreamID × 4'],
+     ans:0, exp:'STE 64 字节，线性表按 StreamID×64 索引；二级表则按 SPLIT 分段。'},
+    {q:'Stage 1 与 Stage 2 翻译各自的输出分别是什么？',
+     opts:['Stage1: VA→PA；Stage2: PA→PA','Stage1: VA→IPA；Stage2: IPA→PA','Stage1: IPA→PA；Stage2: VA→IPA','两者都是 VA→PA'],
+     ans:1, exp:'Stage1 输出 IPA（中间物理地址），Stage2 输出 PA（物理地址）。'},
+    {q:'修改了某进程的页表后，应首先向 SMMU 发送哪类命令？',
+     opts:['CMD_PREFETCH','CMD_TLBI_*（TLB 失效）','CMD_PRI_RESP','CMD_CFGI_ALL'],
+     ans:1, exp:'改页表后必须失效 SMMU TLB（TLBI）与设备 ATC（ATC_INV），否则旧翻译残留。'},
+    {q:'ATS 与 PRI 分别解决什么问题？',
+     opts:['ATS=设备侧翻译缓存与查询；PRI=设备上报缺页请求','ATS=缺页请求；PRI=翻译缓存','两者都用于中断上报','两者都用于时钟门控'],
+     ans:0, exp:'ATS 让设备经协议查询/缓存翻译（ATC）；PRI 让设备把缺页上报给软件做按需分页。'},
+    {q:'4KB 粒度、48 位 VA 的 Stage 1 走查共几级？每级索引几位？',
+     opts:['3 级，每级 12 位','4 级，每级 9 位','4 级，每级 12 位','5 级，每级 9 位'],
+     ans:1, exp:'4KB 页偏移 12 位，剩余 36 位 = 4×9 位，共 4 级走查。'},
+    {q:'Stage 2 页表描述符与 Stage 1 的关键区别是？',
+     opts:['Stage2 没有 XN 与用户/内核位，只有读写权限（S2AP）','Stage2 有用户/内核位','Stage2 不支持大页','Stage2 用 32 位页表'],
+     ans:0, exp:'Stage2 表达 Hypervisor 对 Guest 的授权，只有 RW 权限，无 XN/用户态概念。'},
+    {q:'一个翻译 fault 从发生到内核处理的正确链路是？',
+     opts:['SMMU 写 EVENTQ → 中断 → 软件读 CONS 解析事件 → 修复页表 → 恢复/隔离','SMMU 直接重启设备','fault 由 CPU 的缺页异常处理','驱动轮询页表'],
+     ans:0, exp:'fault 经事件队列上报，软件解析、处理（可恢复则修复+TLBI+resume，否则隔离）。'}
+  ];
+  const qbox = $('#quiz');
+  quiz.forEach((item,i)=>{
+    const div = document.createElement('div');
+    div.className='quiz-item';
+    div.innerHTML = `<div class="q">${i+1}. ${item.q}</div>` +
+      item.opts.map((o,j)=>`<label><input type="radio" name="q${i}" value="${j}"> ${o}</label>`).join('') +
+      `<div class="feedback"></div>`;
+    qbox.appendChild(div);
+  });
+  $('#quizSubmit').addEventListener('click',()=>{
+    let score=0;
+    quiz.forEach((item,i)=>{
+      const sel = $(`input[name="q${i}"]:checked`);
+      const div = qbox.children[i];
+      const fb = div.querySelector('.feedback');
+      div.classList.remove('correct','wrong');
+      $$('label',div).forEach(l=>l.classList.remove('ans'));
+      if(!sel){ fb.className='feedback'; fb.textContent=''; return; }
+      const chosen = parseInt(sel.value,10);
+      const correct = chosen===item.ans;
+      $$('label',div)[item.ans].classList.add('ans');
+      if(correct){ score++; div.classList.add('correct'); fb.className='feedback ok'; fb.textContent='✅ 正确。'+item.exp; }
+      else{ div.classList.add('wrong'); fb.className='feedback no'; fb.textContent='❌ 选错了。'+item.exp; }
+      $$('input',div).forEach(inp=>inp.disabled=true);
+    });
+    const sc = $('#quizScore');
+    sc.style.display='block';
+    sc.textContent = `得分：${score} / ${quiz.length}` + (score===quiz.length ? ' 🎉 满分，已掌握！' : score>=8 ? ' 👍 很好，复习错题即可' : ' 📖 建议回看对应章节');
+    sc.scrollIntoView({behavior:'smooth',block:'center'});
+  });
+  $('#quizReset').addEventListener('click',()=>{
+    $$('#quiz input').forEach(inp=>{ inp.checked=false; inp.disabled=false; });
+    $$('#quiz .quiz-item').forEach(d=>{ d.classList.remove('correct','wrong'); d.querySelector('.feedback').className='feedback'; $$('label',d).forEach(l=>l.classList.remove('ans')); });
+    $('#quizScore').style.display='none';
+  });
+
+  /* ---------- checklist ---------- */
+  const checklist = [
+    'SMMU 为什么存在（隔离/虚拟化/连续 IOVA 三动机）',
+    'SMMU 与 CPU MMU 的异同、与 VT-d 的对照',
+    'StreamID / SubstreamID / PASID / VMID / ASID 的语义与来源',
+    'STE 的作用与 Config 五种模式编码',
+    'CD 的作用及其与 CPU 页表寄存器的对应关系',
+    '翻译主流程：StreamID→STE→(CD→TTB0)+(S2TTB)→走查→PA',
+    'Stage1 与 Stage2 的输入输出、隔离维度、权限差异',
+    '4KB/16KB/64KB 粒度的页偏移与每级索引位数、层级计算公式',
+    '页表描述符关键位：类型、AF、AP/S2AP、SH、XN、nG',
+    'TLB / ATC / Walk Cache 三级缓存及失效命令（TLBI/CFGI/ATC_INV）',
+    '命令/事件/PRI 三队列模型与故障处理流程',
+    '初始化序列与核心寄存器（STRTAB_BASE、CMDQ、CR0 等）',
+    'Linux arm-smmu-v3 驱动、iommu_group/domain/ops 抽象',
+    '能独立排查一个翻译 fault 的完整链路'
+  ];
+  const clBox = $('#checklist');
+  const clState = store.get('smmu-checklist', {});
+  checklist.forEach((item,idx)=>{
+    const lab = document.createElement('label');
+    lab.innerHTML = `<input type="checkbox" ${clState[idx]?'checked':''}> <span>${item}</span>`;
+    if(clState[idx]) lab.classList.add('done');
+    lab.addEventListener('change',e=>{
+      clState[idx]=e.target.checked;
+      store.set('smmu-checklist', clState);
+      lab.classList.toggle('done', e.target.checked);
+      updateProgress();
+    });
+    clBox.appendChild(lab);
+  });
+
+  /* ---------- progress ---------- */
+  function updateProgress(){
+    const total = checklist.length;
+    const done = checklist.filter((_,i)=>clState[i]).length;
+    const pct = Math.round(done/total*100);
+    $('#progBar').style.width = pct+'%';
+    $('#progPct').textContent = pct+'%';
+  }
+  updateProgress();
+
+  $('#resetBtn').addEventListener('click',()=>{
+    if(!confirm('确定重置学习进度（清空清单勾选）？')) return;
+    Object.keys(clState).forEach(k=>delete clState[k]);
+    store.set('smmu-checklist', clState);
+    $$('#checklist input').forEach(inp=>{ inp.checked=false; inp.closest('label').classList.remove('done'); });
+    updateProgress();
+  });
+})();
+</script>
+</body>
+</html>
