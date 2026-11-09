@@ -706,6 +706,152 @@ struct cd {
         </table>
       </div>
 
+      <h3>9.4 完整实例：一个 VA 到 PA 的 4 级走查（数值推演）</h3>
+      <p class="lead">下面用一个<strong>数值完全自洽</strong>的例子，把 9.2 的位域划分与 9.3 的描述符格式串起来，逐级演示从虚拟地址到物理地址的全部过程。读完这节，你就能“在纸上”完成任意一次页表走查。</p>
+
+      <div class="card grad">
+        <h4>📋 假设条件</h4>
+        <ul style="margin:6px 0">
+          <li>翻译模式：<strong>Stage 1 only</strong>（<code>STE.Config = 0b001</code>），非虚拟化场景，VA 直接翻译为 PA。</li>
+          <li>粒度 <strong>4KB</strong>，输入地址宽度 <strong>48 位</strong>（<code>CD.T0SZ = 16</code>），4 级走查（L0→L3）。</li>
+          <li>Stage 1 页表基址来自 Context Descriptor：<code>CD.TTB0 = 0x0000_0000_8000_0000</code>（即 L0 表）。</li>
+          <li>各级页表内容为<strong>本示例人为设定</strong>（描述符值保证与 VA 逐位对应、自洽），用于演示走查机制。</li>
+        </ul>
+      </div>
+
+      <h4>第 0 步：拆分 VA 为各级索引与页内偏移</h4>
+      <p>待翻译的虚拟地址：<code>VA = 0x0000_0181_40E0_9ABC</code>（48 位）。按 9.2 的位域规则拆分为 4 段 9 位索引 + 12 位偏移：</p>
+      <div class="table-wrap">
+        <table>
+          <tr><th>字段</th><th>VA 位</th><th>二进制</th><th>十进制</th><th>作用</th></tr>
+          <tr><td class="mono">L0 索引</td><td class="mono">[47:39]</td><td class="mono">000000011</td><td class="mono">3</td><td>索引 L0 表（第 3 项）</td></tr>
+          <tr><td class="mono">L1 索引</td><td class="mono">[38:30]</td><td class="mono">000000101</td><td class="mono">5</td><td>索引 L1 表（第 5 项）</td></tr>
+          <tr><td class="mono">L2 索引</td><td class="mono">[29:21]</td><td class="mono">000000111</td><td class="mono">7</td><td>索引 L2 表（第 7 项）</td></tr>
+          <tr><td class="mono">L3 索引</td><td class="mono">[20:12]</td><td class="mono">000001001</td><td class="mono">9</td><td>索引 L3 表（第 9 项）</td></tr>
+          <tr><td class="mono">页内偏移</td><td class="mono">[11:0]</td><td class="mono">101010111100</td><td class="mono">0xABC</td><td>最终 PA 的低 12 位</td></tr>
+        </table>
+      </div>
+      <p class="footnote">验证：3×2³⁹ + 5×2³⁰ + 7×2²¹ + 9×2¹² + 0xABC = 0x0181_40E0_9ABC ✓（与输入 VA 一致）。你也可把它输入下方的交互式计算器复核。</p>
+
+      <h4>第 1 步：L0 查表（TTBR0 → 下一级表）</h4>
+      <div class="table-wrap">
+        <table>
+          <tr><th>项目</th><th>值</th><th>说明</th></tr>
+          <tr><td>表基址</td><td class="mono">CD.TTB0 = 0x0000_0000_8000_0000</td><td>L0 表物理地址</td></tr>
+          <tr><td>表项地址</td><td class="mono">0x8000_0000 + 3 × 8 = 0x8000_0018</td><td>每个描述符占 8 字节</td></tr>
+          <tr class="hl"><td>读取描述符</td><td class="mono">0x0000_0000_8000_1003</td><td>低 2 位 = 0b11 → Table 描述符</td></tr>
+          <tr><td>解析下一级</td><td class="mono">bits[47:12] = 0x8000_1000</td><td>L1 表基址</td></tr>
+        </table>
+      </div>
+
+      <h4>第 2 步：L1 查表</h4>
+      <div class="table-wrap">
+        <table>
+          <tr><th>项目</th><th>值</th><th>说明</th></tr>
+          <tr><td>表基址</td><td class="mono">0x0000_0000_8000_1000</td><td>上一步解析得到</td></tr>
+          <tr><td>表项地址</td><td class="mono">0x8000_1000 + 5 × 8 = 0x8000_1028</td><td>L1 索引 = 5</td></tr>
+          <tr class="hl"><td>读取描述符</td><td class="mono">0x0000_0000_8000_2003</td><td>低 2 位 = 0b11 → Table 描述符</td></tr>
+          <tr><td>解析下一级</td><td class="mono">bits[47:12] = 0x8000_2000</td><td>L2 表基址</td></tr>
+        </table>
+      </div>
+
+      <h4>第 3 步：L2 查表</h4>
+      <div class="table-wrap">
+        <table>
+          <tr><th>项目</th><th>值</th><th>说明</th></tr>
+          <tr><td>表基址</td><td class="mono">0x0000_0000_8000_2000</td><td>上一步解析得到</td></tr>
+          <tr><td>表项地址</td><td class="mono">0x8000_2000 + 7 × 8 = 0x8000_2038</td><td>L2 索引 = 7</td></tr>
+          <tr class="hl"><td>读取描述符</td><td class="mono">0x0000_0000_8000_3003</td><td>低 2 位 = 0b11 → Table 描述符</td></tr>
+          <tr><td>解析下一级</td><td class="mono">bits[47:12] = 0x8000_3000</td><td>L3 表基址</td></tr>
+        </table>
+      </div>
+
+      <h4>第 4 步：L3 查表（叶子页描述符）</h4>
+      <div class="table-wrap">
+        <table>
+          <tr><th>项目</th><th>值</th><th>说明</th></tr>
+          <tr><td>表基址</td><td class="mono">0x0000_0000_8000_3000</td><td>上一步解析得到</td></tr>
+          <tr><td>表项地址</td><td class="mono">0x8000_3000 + 9 × 8 = 0x8000_3048</td><td>L3 索引 = 9</td></tr>
+          <tr class="hl"><td>读取描述符</td><td class="mono">0x0000_0000_9A00_0443</td><td>低 2 位 = 0b11 → Page 描述符（叶子）</td></tr>
+          <tr><td>解析物理页</td><td class="mono">bits[47:12] = 0x9A00_0000</td><td>4KB 物理页基址</td></tr>
+          <tr><td>权限属性</td><td class="mono">AF=1, AP=0b01, SH=0b00</td><td>已访问；EL1 可读写；非共享</td></tr>
+        </table>
+      </div>
+
+      <p>L3 叶子页描述符 <code>0x9A00_0443</code> 的位域逐位解析（低 12 位 <code>0x443</code>）：</p>
+      <pre><span class="cm">// 0x9A00_0443 低 12 位 = 0x443 = 0b 0100 0100 0011</span>
+bit[1:0]  = 0b11  → 描述符类型 = Page（有效叶子）   <span class="cm">// 0x...443 最低两位为 11</span>
+bit[10]   = 1     → AF = 1（该页已被访问）            <span class="cm">// 0x400 位 = 1024</span>
+bit[9:8]  = 0b00  → SH = 0（Non-shareable）          <span class="cm">// 共享性</span>
+bit[7:6]  = 0b01  → AP = 0b01（EL1 可读写）          <span class="cm">// 0x40 位 = 64</span>
+bit[4:2]  = 0b000 → AttrIndx = 0（MAIR 属性索引 0）   <span class="cm">// 缓存属性</span>
+<span class="cm">// 输出地址 OA = bits[47:12] = 0x9A00_0000</span></pre>
+
+      <h4>第 5 步：合成最终物理地址</h4>
+      <div class="card ok">
+        <p style="margin:6px 0;font-family:var(--mono);font-size:15px">PA = OA + offset = 0x0000_0000_9A00_0000 + 0xABC = <strong>0x0000_0000_9A00_0ABC</strong></p>
+        <p style="margin:6px 0;color:var(--muted)">页表只提供地址的<strong>高位（页基址）</strong>，页内偏移从 VA 原样复制到 PA，二者拼接即为最终物理地址。</p>
+      </div>
+
+      <h4>全景图：完整走查链路</h4>
+      <div class="diagram">
+        <svg viewBox="0 0 960 560" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace,monospace">
+          <defs><marker id="w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#7bc8ff"/></marker></defs>
+          <!-- VA 位域条 -->
+          <text x="20" y="24" fill="#8b98b5" font-size="12">VA = 0x0000_0181_40E0_9ABC</text>
+          <rect x="20" y="34" width="150" height="34" fill="#4da3ff" opacity=".85"/><text x="95" y="56" fill="#fff" font-size="12" text-anchor="middle">L0=3</text>
+          <rect x="170" y="34" width="150" height="34" fill="#7bc8ff" opacity=".7"/><text x="245" y="56" fill="#04121f" font-size="12" text-anchor="middle">L1=5</text>
+          <rect x="320" y="34" width="150" height="34" fill="#b58cff" opacity=".7"/><text x="395" y="56" fill="#fff" font-size="12" text-anchor="middle">L2=7</text>
+          <rect x="470" y="34" width="150" height="34" fill="#3ddc97" opacity=".7"/><text x="545" y="56" fill="#04121f" font-size="12" text-anchor="middle">L3=9</text>
+          <rect x="620" y="34" width="180" height="34" fill="#ffb454" opacity=".75"/><text x="710" y="56" fill="#04121f" font-size="12" text-anchor="middle">offset=0xABC</text>
+          <text x="95" y="84" fill="#8b98b5" font-size="10" text-anchor="middle">[47:39]</text>
+          <text x="245" y="84" fill="#8b98b5" font-size="10" text-anchor="middle">[38:30]</text>
+          <text x="395" y="84" fill="#8b98b5" font-size="10" text-anchor="middle">[29:21]</text>
+          <text x="545" y="84" fill="#8b98b5" font-size="10" text-anchor="middle">[20:12]</text>
+          <text x="710" y="84" fill="#8b98b5" font-size="10" text-anchor="middle">[11:0]</text>
+
+          <!-- TTBR0 -->
+          <rect x="260" y="120" width="440" height="46" rx="9" fill="#1d2637" stroke="#33405f"/>
+          <text x="480" y="147" fill="#dbe2f0" font-size="13" text-anchor="middle">CD.TTB0 = 0x0000_0000_8000_0000（L0 表）</text>
+          <!-- L0 -->
+          <rect x="260" y="206" width="440" height="60" rx="9" fill="#1d2637" stroke="#33405f"/>
+          <text x="480" y="231" fill="#4da3ff" font-size="13" text-anchor="middle">L0 表项[3] @ 0x8000_0018</text>
+          <text x="480" y="251" fill="#8b98b5" font-size="12" text-anchor="middle">描述符 0x8000_1003（Table）→ 0x8000_1000</text>
+          <!-- L1 -->
+          <rect x="260" y="296" width="440" height="60" rx="9" fill="#1d2637" stroke="#33405f"/>
+          <text x="480" y="321" fill="#7bc8ff" font-size="13" text-anchor="middle">L1 表项[5] @ 0x8000_1028</text>
+          <text x="480" y="341" fill="#8b98b5" font-size="12" text-anchor="middle">描述符 0x8000_2003（Table）→ 0x8000_2000</text>
+          <!-- L2 -->
+          <rect x="260" y="386" width="440" height="60" rx="9" fill="#1d2637" stroke="#33405f"/>
+          <text x="480" y="411" fill="#b58cff" font-size="13" text-anchor="middle">L2 表项[7] @ 0x8000_2038</text>
+          <text x="480" y="431" fill="#8b98b5" font-size="12" text-anchor="middle">描述符 0x8000_3003（Table）→ 0x8000_3000</text>
+          <!-- L3 -->
+          <rect x="260" y="446" width="440" height="60" rx="9" fill="#16233a" stroke="#3ddc97" stroke-width="1.6"/>
+          <text x="480" y="471" fill="#3ddc97" font-size="13" text-anchor="middle">L3 表项[9] @ 0x8000_3048</text>
+          <text x="480" y="491" fill="#8b98b5" font-size="12" text-anchor="middle">描述符 0x9A00_0443（Page, AF=1）→ 页 0x9A00_0000</text>
+          <!-- PA -->
+          <rect x="260" y="536" width="440" height="20" rx="4" fill="none"/>
+          <text x="480" y="551" fill="#3ddc97" font-size="14" text-anchor="middle" font-weight="700">PA = 0x9A00_0000 + 0xABC = 0x0000_0000_9A00_0ABC</text>
+
+          <line x1="480" y1="166" x2="480" y2="206" stroke="#7bc8ff" stroke-width="2" marker-end="url(#w)"/>
+          <line x1="480" y1="266" x2="480" y2="296" stroke="#7bc8ff" stroke-width="2" marker-end="url(#w)"/>
+          <line x1="480" y1="356" x2="480" y2="386" stroke="#7bc8ff" stroke-width="2" marker-end="url(#w)"/>
+          <line x1="480" y1="506" x2="480" y2="536" stroke="#3ddc97" stroke-width="2" marker-end="url(#w)"/>
+        </svg>
+        <div class="cap">图 5 · 完整 4 级走查：VA 位域拆分 → TTBR0 → L0/L1/L2 逐级 Table 描述符 → L3 叶子 Page 描述符 → PA</div>
+      </div>
+
+      <details class="deep">
+        <summary>延伸：若走嵌套翻译（Stage 1 + Stage 2），这个 PA 会变成什么？</summary>
+        <div class="body">
+          <p>本示例是 Stage 1 only，得到的 <code>0x9A00_0ABC</code> 是<strong>最终物理地址</strong>。若 <code>STE.Config = 0b011</code>（嵌套），上述结果只是<strong>中间物理地址 IPA</strong>，还需作为 Stage 2 的输入再做一次走查（IPA → PA）：</p>
+          <pre>Stage 1 输出：IPA = 0x0000_0000_9A00_0ABC   <span class="cm">// 本例得到的值</span>
+Stage 2 输入：IPA → 由 STE.S2TTB 走 Stage 2 页表 → 真正的 PA
+<span class="cm">// Stage 2 页表由 Hypervisor 维护，用 VMID 隔离；流程与上表同构，只是描述符用 S2AP 权限</span></pre>
+          <p>两层页表“串联”正是设备直通虚拟机的核心机制：Guest 感知到的是 IPA，Hypervisor 再把它映射到真实内存。</p>
+        </div>
+      </details>
+
       <div class="card grad">
         <h4>🧮 交互式走查计算器（4KB · 48 位）</h4>
         <p style="font-size:14px;color:var(--muted)">输入一个 48 位以内的十六进制 VA，拆解其各级索引与页内偏移，直观感受“地址 → 页表路径”。</p>
