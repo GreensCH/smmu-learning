@@ -257,6 +257,43 @@ mark{background:rgba(255,214,106,.4);color:inherit;border-radius:3px;padding:0 2
 .hidden{display:none}
 .footnote{font-size:12.5px;color:var(--muted2);margin-top:4px}
 .ref{font-size:13.5px}
+
+/* ---------- 认知辅助：直觉 / 类比 / 一句话导读 ---------- */
+.intuition{
+  background:linear-gradient(135deg,rgba(77,163,255,.10),rgba(181,140,255,.08));
+  border:1px solid var(--accent);border-radius:12px;padding:14px 18px;margin:16px 0;
+}
+.intuition .k{font-weight:700;color:var(--accent2)}
+.analogy{
+  background:rgba(255,180,84,.09);border:1px solid var(--orange);border-left:4px solid var(--orange);
+  border-radius:10px;padding:12px 16px;margin:14px 0;font-size:14.5px;
+}
+.analogy .k{font-weight:700;color:var(--orange)}
+.tldr{
+  background:var(--bg3);border:1px solid var(--border);border-left:4px solid var(--green);
+  border-radius:10px;padding:11px 16px;margin:14px 0 18px;font-size:14.5px;
+}
+.tldr .k{font-weight:700;color:var(--green);font-size:12px;letter-spacing:1px;display:block;margin-bottom:3px}
+.roadmap{display:grid;gap:12px;margin:18px 0}
+.roadmap .step{
+  display:flex;gap:14px;align-items:flex-start;background:var(--panel);
+  border:1px solid var(--border);border-radius:12px;padding:14px 16px;
+}
+.roadmap .step .no{
+  flex:0 0 34px;height:34px;border-radius:50%;background:var(--accent);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;
+}
+.roadmap .step h4{margin:0 0 4px}
+.roadmap .step p{margin:0;font-size:14px;color:var(--muted)}
+.flowbox{
+  background:var(--panel);border:1px solid var(--border);border-radius:12px;
+  padding:16px 18px;margin:16px 0;
+}
+.flowbox .arrow{color:var(--accent);font-size:20px;margin:0 8px;vertical-align:middle}
+.mini-badge{
+  display:inline-block;font-family:var(--mono);font-size:11.5px;padding:1px 7px;
+  border-radius:5px;background:var(--bg3);border:1px solid var(--border);color:var(--accent2);
+}
 </style>
 </head>
 <body data-theme="dark">
@@ -289,13 +326,40 @@ mark{background:rgba(255,214,106,.4);color:inherit;border-radius:3px;padding:0 2
       <span class="sub">面向有经验的芯片开发工程师 · 从原理、数据结构、翻译流程到编程模型与 Linux 实战 · 可离线使用</span>
     </h1>
 
-    <div class="card grad">
-      <p style="margin:0"><strong>一句话定义：</strong>SMMU（System Memory Management Unit）是 ARM 体系中的 <strong>IOMMU</strong>，为外设（DMA 主设备）提供<strong>地址转换、访问隔离与虚拟化</strong>能力 —— 相当于把 CPU 的 MMU 搬到“设备访问内存”这条路径上。它把设备的 DMA 地址（IOVA）翻译成物理地址（PA），并强制设备只能访问被授权（映射）的内存。</p>
+    <div class="intuition">
+      <p style="margin:0 0 8px"><span class="k">一句话定义：</span>SMMU 就是<strong>「设备世界的 MMU」</strong>——CPU 访存靠 MMU 翻译地址，设备（DMA）访存靠 SMMU 翻译地址。它把设备发来的虚拟地址（IOVA）翻成物理地址（PA），并确保设备<strong>只能碰它被允许碰的内存</strong>。</p>
+      <p style="margin:0;font-size:14px;color:var(--muted)">你早已熟悉 MMU 的页表、TLB、缺页，SMMU 只是把这些机制搬到「设备 → 内存」这条路上。抓牢这个类比，后面所有概念都能“对号入座”。</p>
+    </div>
+
+    <div class="tldr"><span class="k">💡 3 分钟建立直觉（先看这个，别急着抠细节）</span>
+      <p style="margin:0">设想你家小区（<strong>内存</strong>）有很多房间（<strong>物理页</strong>）。快递员（<strong>DMA 设备</strong>）要送货，得先把「包裹上的临时编号」（<strong>IOVA/虚拟地址</strong>）换成「真实房间号」（<strong>物理地址 PA</strong>）。<strong>SMMU 就是小区门口的传达室</strong>：它查一本登记册（<strong>页表</strong>），做编号转换，同时<strong>检查快递员有没有权限</strong>进那个房间——没登记（未映射）或没权限的，一律拦下（<strong>fault</strong>）。</p>
+      <p style="margin:6px 0 0;font-size:13.5px;color:var(--muted)">这个传达室 + 登记册 + 拦截规则，就是 SMMU 的全部核心。剩下的 SteamID、STE、Stage 1/2、TLB，都是在回答三个问题：<strong>① 谁在访问？② 查哪本册子？③ 怎么翻译？</strong></p>
+    </div>
+
+    <div class="flowbox">
+      <h4 style="margin-top:0">核心流程，一眼看懂</h4>
+      <div style="font-size:15px;line-height:2.2;text-align:center;word-break:break-word">
+        <span class="mini-badge">设备</span>
+        <span class="arrow">→</span>发来<span class="mini-badge">IOVA + StreamID</span>
+        <span class="arrow">→</span><strong style="color:var(--accent)">SMMU</strong> 查<span class="mini-badge">页表</span>翻译
+        <span class="arrow">→</span><span class="mini-badge">物理地址 PA</span>
+        <span class="arrow">→</span><span class="mini-badge">内存</span>
+      </div>
+      <p style="margin:10px 0 0;font-size:13.5px;color:var(--muted);text-align:center">没映射 / 越权 → SMMU 报错（fault），不放行。就这么简单。</p>
+    </div>
+
+    <h3 style="margin-top:24px">🗺️ 建议学习路径（按这个顺序读，别跳）</h3>
+    <div class="roadmap">
+      <div class="step"><div class="no">1</div><div><h4>为什么（01~02）</h4><p>先搞懂 SMMU 解决什么痛点，建立价值感——看不懂价值，后面都是死记。</p></div></div>
+      <div class="step"><div class="no">2</div><div><h4>怎么翻译（05、08、09）</h4><p>核心中的核心：StreamID → STE → 页表 → PA。先看主流程，再看 Stage 1/2 和页表走查。</p></div></div>
+      <div class="step"><div class="no">3</div><div><h4>关键概念（04、06、07）</h4><p>用到 StreamID/STE/CD 时，再回头查这些“名词表”，按需看、不必一次背完。</p></div></div>
+      <div class="step"><div class="no">4</div><div><h4>工程落地（10~15）</h4><p>TLB 维护、队列、Linux 驱动、调试——等你真要写代码/调 bug 时再看。</p></div></div>
     </div>
 
     <!-- ===================== 1 ===================== -->
     <section id="sec-why">
       <h2><span class="num">01</span>为什么需要 SMMU：动机与价值</h2>
+      <div class="tldr"><span class="k">一句话导读</span>没有 SMMU，设备用物理地址直接访存 = 随便进出别人家。SMMU 就是给设备装「门禁 + 地址转换」。</div>
       <p class="lead">要“完全掌握”SMMU，先要理解它解决的根本问题。没有 SMMU 时，外设通过 DMA 直接使用<strong>物理地址</strong>访问内存，这带来三类致命问题。</p>
 
       <div class="grid cols3">
@@ -346,6 +410,7 @@ mark{background:rgba(255,214,106,.4);color:inherit;border-radius:3px;padding:0 2
     <!-- ===================== 2 ===================== -->
     <section id="sec-place">
       <h2><span class="num">02</span>SMMU 在系统中的位置</h2>
+      <div class="tldr"><span class="k">一句话导读</span>SMMU 站在「设备」和「内存」之间，是设备访存的必经关卡——就像传达室必须设在小区大门口，而不是楼里。</div>
       <p class="lead">SMMU 位于<strong>DMA 主设备与系统互联/内存控制器之间</strong>，是设备访存路径上的必经检查点。</p>
 
       <div class="diagram">
@@ -399,6 +464,7 @@ mark{background:rgba(255,214,106,.4);color:inherit;border-radius:3px;padding:0 2
     <!-- ===================== 3 ===================== -->
     <section id="sec-evolution">
       <h2><span class="num">03</span>架构演进：SMMUv2 → SMMUv3</h2>
+      <div class="tldr"><span class="k">一句话导读</span>v2 用「寄存器数组」找配置，v3 改成「内存里的表」。记住一句话：<strong>v3 把数据搬进了内存，扩展性更好、支持 PASID</strong>。现代系统学 v3 即可。</div>
       <p class="lead">理解代际差异，能帮你读懂各类 SoC 的 SMMU 实现与 Linux 驱动分支（<code>arm-smmu.c</code> vs <code>arm-smmu-v3.c</code>）。</p>
 
       <div class="table-wrap">
@@ -423,8 +489,21 @@ mark{background:rgba(255,214,106,.4);color:inherit;border-radius:3px;padding:0 2
     <!-- ===================== 4 ===================== -->
     <section id="sec-concepts">
       <h2><span class="num">04</span>核心概念与术语（务必烂熟于心）</h2>
+      <div class="tldr"><span class="k">一句话导读</span>只需先记住两个：<strong>StreamID = 谁（哪个设备）</strong>，<strong>SubstreamID = 谁的哪个进程</strong>。其余（STE/CD/ASID/VMID）都是它们“查表时用到的本子”，用到再回来查。</div>
       <p class="lead">SMMU 的“心智模型”由下面几个概念构成。它们环环相扣，先建立整体图景。</p>
 
+      <div class="card">
+        <h4>🎯 先记住这两条，其余随用随查</h4>
+        <ul style="margin:6px 0">
+          <li><strong>StreamID</strong>：标识<strong>“是哪个设备”</strong>发起访问。PCIe 里通常就是 BDF（Bus:Dev.Func）。</li>
+          <li><strong>SubstreamID（=PASID）</strong>：同一设备下进一步区分<strong>“是哪个进程/上下文”</strong>，用于设备同时服务多个进程（SVA）。</li>
+        </ul>
+        <p style="margin:8px 0 0;font-size:14px;color:var(--muted)">剩下的 STE / CD / ASID / VMID / IOVA 等，本质都是“查表和隔离”时用到的对象。想一次看清全部，展开下面的完整术语表。</p>
+      </div>
+
+      <details>
+        <summary>📚 完整术语表（可展开，不必一次背完）</summary>
+        <div class="body">
       <div class="table-wrap">
         <table>
           <tr><th>术语</th><th>含义</th><th>类比 / 备注</th></tr>
@@ -443,6 +522,8 @@ mark{background:rgba(255,214,106,.4);color:inherit;border-radius:3px;padding:0 2
           <tr><td><span class="mono">PRI</span></td><td>Page Request Interface，设备上报缺页</td><td>支持可恢复 fault / demand paging</td></tr>
         </table>
       </div>
+        </div>
+      </details>
 
       <details class="deep">
         <summary>StreamID 与 SubstreamID 的来源（PCIe 场景）</summary>
@@ -459,6 +540,7 @@ SubstreamID= PASID (0..N)  <span class="cm">// 每个硬件队列绑定一个进
     <!-- ===================== 5 ===================== -->
     <section id="sec-flow">
       <h2><span class="num">05</span>翻译流程全貌（核心机制）</h2>
+      <div class="tldr"><span class="k">一句话导读</span>整个 SMMU 就干一件事，记住这条链：<strong>StreamID → 查 STE →（可选查 CD）→ 走页表 → 得到 PA</strong>。这一节是整个手册的「主循环」，其余章节都在为它做注脚。</div>
       <p class="lead">一次设备 DMA 事务进入 SMMU 后，翻译决策流程如下。这是整个 SMMU 的“主循环”，务必逐字理解。</p>
 
       <div class="diagram">
@@ -528,11 +610,17 @@ SubstreamID= PASID (0..N)  <span class="cm">// 每个硬件队列绑定一个进
         <p style="margin:6px 0"><code>StreamID → STE →（S1: SSID → CD → TTB0）+（S2: STE.S2TTB）→ 页表走查 → PA</code>。</p>
         <p style="margin:6px 0;color:var(--muted)">把 SMMU 想象成一台“以设备为主语的 MMU”：<strong>STE 是设备级页表配置，CD 是进程级页表配置，二者共同决定用哪份页表、如何翻译、谁（ASID/VMID）隔离谁</strong>。</p>
       </div>
+
+      <div class="analogy">
+        <span class="k">🎯 三步口诀（记住就能复述整个流程）：</span>
+        <p style="margin:6px 0 0"><strong>第一步“认人”</strong>——看 StreamID，找到这台设备的档案（STE）；<strong>第二步“看规则”</strong>——STE 里的 Config 决定走 Stage1 还是 Stage2；<strong>第三步“查地图”</strong>——拿页表把地址翻成物理地址。三步走完，事务放行。</p>
+      </div>
     </section>
 
     <!-- ===================== 6 ===================== -->
     <section id="sec-ste">
       <h2><span class="num">06</span>Stream Table 与 STE 详解</h2>
+      <div class="tldr"><span class="k">一句话导读</span>STE = 每个设备的「档案卡」，回答“这个设备该怎么翻译”。Stream Table 就是一堆档案卡的抽屉，用 <strong>StreamID 当编号</strong>去翻。你只需记住最关键的一个字段：<code>Config</code>（决定 bypass / abort / Stage1 / Stage2）。</div>
       <p class="lead">STE 是 SMMUv3 的“设备注册表”。每个 StreamID 一个 64 字节的 STE，软件负责在内存中维护，SMMU 按需缓存。</p>
 
       <h3>Stream Table 的两种索引方式</h3>
@@ -549,10 +637,14 @@ SubstreamID= PASID (0..N)  <span class="cm">// 每个硬件队列绑定一个进
       </div>
 
       <h3>STE 关键字段（64 字节 = 4 × 128bit 字）</h3>
+      <p>先只记最关键的 <code>Config</code> 字段：它决定这个设备走哪条翻译路径（Bypass / Abort / Stage1 / Stage2）。完整字段表见下：</p>
+      <details>
+        <summary>📋 完整字段表（可展开）</summary>
+        <div class="body">
       <div class="table-wrap">
         <table>
           <tr><th>字段</th><th>作用</th><th>说明</th></tr>
-          <tr><td class="mono">Config [2:0]</td><td>翻译行为选择</td><td>Bypass/Abort/S1/S2/S1+S2（见上表）</td></tr>
+          <tr class="hl"><td class="mono">Config [2:0]</td><td>翻译行为选择</td><td>Bypass/Abort/S1/S2/S1+S2（见上表）</td></tr>
           <tr><td class="mono">S1Fmt / S1ContextPtr</td><td>Stage 1 的 CD 表格式与基址</td><td>CD 表线性（默认）或 2 级；CD 表需 64 字节对齐</td></tr>
           <tr><td class="mono">S1CDMax</td><td>CD 表最大条数</td><td>决定支持的 SubstreamID 数量（如 2^N）</td></tr>
           <tr><td class="mono">S1STALLD / S1DSS</td><td>Stage 1 fault 处理策略</td><td>stall（阻塞重放）或 abort；默认 abort</td></tr>
@@ -565,6 +657,8 @@ SubstreamID= PASID (0..N)  <span class="cm">// 每个硬件队列绑定一个进
           <tr><td class="mono">SHCFG / MemAttr / MTCFG / ALLOCCFG</td><td>内存属性（共享性/缓存）</td><td>与 PCIe No Snoop 位配合</td></tr>
         </table>
       </div>
+        </div>
+      </details>
 
       <pre><span class="cm">// 简化示意：STE 的逻辑布局（非逐位精确，完整位域见 ARM IHI 0070 / Linux arm-smmu-v3.h）</span>
 struct ste {                     <span class="cm">// 64 bytes</span>
@@ -582,6 +676,7 @@ struct ste {                     <span class="cm">// 64 bytes</span>
     <!-- ===================== 7 ===================== -->
     <section id="sec-cd">
       <h2><span class="num">07</span>Context Descriptor（CD）详解</h2>
+      <div class="tldr"><span class="k">一句话导读</span>CD = 每个「进程/子流」的页表配置，<strong>和 CPU 的 TTBR0_EL1/TCR_EL1 几乎一模一样</strong>。你是芯片工程师，这节对你来说就是“复习 MMU 寄存器”。</div>
       <p class="lead">CD 描述“一个 SubstreamID 的 Stage 1 页表配置”，内容几乎与 CPU 的 <code>TTBR0_EL1/TTBR1_EL1/TCR_EL1</code> 语义一一对应。这是工程师最容易把 MMU 经验迁移过来的地方。</p>
 
       <div class="table-wrap">
@@ -613,6 +708,7 @@ struct cd {
     <!-- ===================== 8 ===================== -->
     <section id="sec-stage">
       <h2><span class="num">08</span>Stage 1 / Stage 2 地址翻译</h2>
+      <div class="tldr"><span class="k">一句话导读</span>把翻译看成两层楼梯：<strong>Stage 1 管“进程的虚拟地址”，Stage 2 管“虚拟机的中间地址”</strong>。普通系统只用 Stage 1；设备直通给虚拟机时，Stage 2 才登场。</div>
 
       <h3>8.1 Stage 1：VA → IPA（设备“进程页表”）</h3>
       <p>Stage 1 由 CD 描述，把设备提供的虚拟地址（VA，用于 SVA 场景，或驱动分配的 IOVA 语义）翻译成<strong>中间物理地址 IPA</strong>。非虚拟化环境（Config=0b001）中，IPA 即最终 PA。</p>
@@ -656,6 +752,7 @@ struct cd {
     <!-- ===================== 9 ===================== -->
     <section id="sec-walk">
       <h2><span class="num">09</span>页表与走查（Page Table Walk）</h2>
+      <div class="tldr"><span class="k">一句话导读</span>SMMU 和 CPU MMU <strong>用同一套页表格式</strong>。地址按「层级索引 + 页内偏移」切开，一级一级查下去，最后拼接成物理地址。9.4 有个完整数值例子，建议跟着手算一遍。</div>
       <p class="lead">SMMU 与 CPU MMU <strong>共用 AArch64 转换表格式</strong>。理解页表走查的数学，是看懂性能、TLB、fault 的前提。</p>
 
       <h3>9.1 粒度与层级参数</h3>
@@ -881,6 +978,7 @@ Stage 2 输入：IPA → 由 STE.S2TTB 走 Stage 2 页表 → 真正的 PA
     <!-- ===================== 10 ===================== -->
     <section id="sec-cache">
       <h2><span class="num">10</span>TLB / ATC 缓存与维护</h2>
+      <div class="tldr"><span class="k">一句话导读</span>查页表很慢，所以要缓存（TLB）。但<strong>改了页表必须“刷掉”旧缓存</strong>，否则设备还在用过期翻译。这节的灵魂就一句：<strong>改完表，记得发失效命令</strong>。</div>
       <p class="lead">页表走查昂贵（一次可能 4 次内存访问），因此 SMMU 内部有 TLB，设备侧有 ATC。缓存一致性由“失效（invalidate）命令”维护。</p>
 
       <h3>10.1 三级缓存层次</h3>
@@ -915,6 +1013,7 @@ Stage 2 输入：IPA → 由 STE.S2TTB 走 Stage 2 页表 → 真正的 PA
     <!-- ===================== 11 ===================== -->
     <section id="sec-queue">
       <h2><span class="num">11</span>命令 / 事件 / PRI 队列</h2>
+      <div class="tldr"><span class="k">一句话导读</span>SMMU 和软件靠三条“传话管道”沟通：<strong>命令队列</strong>（软件→SMMU 下指令）、<strong>事件队列</strong>（SMMU→软件报错）、<strong>PRI 队列</strong>（设备缺页时求助）。都是内存里的环形缓冲区。</div>
       <p class="lead">SMMUv3 用<strong>内存中的环形队列</strong>与软件交互（而非大量 MMIO 寄存器）。理解三队列是理解驱动实现的关键。</p>
 
       <div class="grid cols3">
@@ -957,9 +1056,14 @@ Stage 2 输入：IPA → 由 STE.S2TTB 走 Stage 2 页表 → 真正的 PA
     <!-- ===================== 12 ===================== -->
     <section id="sec-regs">
       <h2><span class="num">12</span>寄存器与编程模型</h2>
+      <div class="tldr"><span class="k">一句话导读</span>SMMUv3 把「大块数据」放进内存（表、队列），寄存器只留「几个指针 + 开关」。初始化就是：<strong>分配表 → 填指针 → 使能</strong>，故障处理就是「读事件队列」。</div>
       <p class="lead">SMMUv3 把大量状态放进内存结构，MMIO 寄存器只负责“入口”：指向 Stream Table 与各队列、控制使能、上报全局错误。</p>
 
       <h3>12.1 核心寄存器（SMMUv3，偏移为基址内偏移）</h3>
+      <p>寄存器很少、只做“指针 + 开关”。用到时再查完整表：</p>
+      <details>
+        <summary>📋 完整寄存器表（可展开）</summary>
+        <div class="body">
       <div class="table-wrap">
         <table>
           <tr><th>寄存器</th><th>偏移</th><th>作用</th></tr>
@@ -974,6 +1078,8 @@ Stage 2 输入：IPA → 由 STE.S2TTB 走 Stage 2 页表 → 真正的 PA
           <tr><td class="mono">PRIQ_BASE / PROD / CONS</td><td class="mono">0xB0 / 0xB8 / 0xBC</td><td>PRI 队列基址 / 指针</td></tr>
         </table>
       </div>
+        </div>
+      </details>
       <p class="footnote">精确偏移以 <strong>ARM IHI 0070（SMMUv3 架构规范）</strong>与具体 SoC 手册为准；上表为通用 SMMUv3 布局。</p>
 
       <h3>12.2 初始化序列（典型）</h3>
@@ -1005,6 +1111,7 @@ write(CR0, CR0.CMDQEN | CR0.EVENTQEN | CR0.PRIQEN | CR0.SMMUEN);
     <!-- ===================== 13 ===================== -->
     <section id="sec-linux">
       <h2><span class="num">13</span>Linux 内核实现（实战视角）</h2>
+      <div class="tldr"><span class="k">一句话导读</span>Linux 用一套统一的 <code>IOMMU API</code> 把 SMMU 抽象掉，驱动只做三件事：<strong>建页表、下发命令、处理故障</strong>。看懂 <code>arm-smmu-v3.c</code> 就懂了 SMMU 工程实现。</div>
       <p class="lead">Linux 主线的 SMMUv3 驱动位于 <code>drivers/iommu/arm/arm-smmu-v3/</code>，通过 <strong>IOMMU API</strong> 暴露统一接口。理解它能把前面的理论落到代码。</p>
 
       <h3>13.1 代码结构</h3>
@@ -1056,6 +1163,7 @@ pcie@60000000 {
     <!-- ===================== 14 ===================== -->
     <section id="sec-perf">
       <h2><span class="num">14</span>调试与性能</h2>
+      <div class="tldr"><span class="k">一句话导读</span>SMMU 出问题，九成是：<strong>① StreamID 没映射 ② 忘了失效缓存 ③ Stage2/VMID 配错</strong>。遇到 DMA 数据错乱，先查这三样。</div>
 
       <h3>14.1 常见故障排查清单</h3>
       <div class="table-wrap">
@@ -1082,6 +1190,7 @@ pcie@60000000 {
     <!-- ===================== 15 ===================== -->
     <section id="sec-pitfalls">
       <h2><span class="num">15</span>常见误区与易错点</h2>
+      <div class="tldr"><span class="k">一句话导读</span>这 6 个坑是工程师踩出来的，每条都对应前面某一节。考前快速过一遍，能帮你避开 90% 的实战问题。</div>
       <div class="grid cols2">
         <div class="card err">
           <h4>① 把 StreamID 当成“设备编号”随意分配</h4>
