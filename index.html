@@ -973,6 +973,93 @@ Stage 2 输入：IPA → 由 STE.S2TTB 走 Stage 2 页表 → 真正的 PA
         </div>
         <div class="calc-output" id="levelOutput"></div>
       </div>
+
+      <h3>9.5 内存满了怎么办：swap 与设备侧缺页机制</h3>
+      <p class="lead">先破除一个高频误区：<strong>MMU/SMMU 的页表根本不指向磁盘</strong>。页表描述符里的“物理地址”字段<strong>永远只指向物理内存（RAM）</strong>，它没有任何位能表达磁盘上的位置。SMMU/MMU 是纯地址翻译硬件，不认识磁盘、SSD、swap。“内存→磁盘”的映射是<strong>操作系统（软件）</strong>用“复用页表项”的技巧实现的。</p>
+
+      <h4>① swap 映射存在哪里？——就在页表项本身</h4>
+      <p>一个页表项（Page descriptor）在两种状态下被复用：</p>
+      <div class="diagram">
+        <svg viewBox="0 0 960 240" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace,monospace">
+          <defs><marker id="sw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#7bc8ff"/></marker></defs>
+          <!-- present -->
+          <text x="20" y="26" fill="#3ddc97" font-size="13" font-weight="700">状态 A：页在内存中（present）</text>
+          <rect x="20" y="38" width="430" height="52" rx="8" fill="#1d2637" stroke="#33405f"/>
+          <rect x="20" y="38" width="300" height="52" rx="8" fill="#3ddc97" opacity=".16"/>
+          <text x="35" y="60" fill="#3ddc97" font-size="12">物理页基址 PA[47:12]</text>
+          <text x="35" y="79" fill="#8b98b5" font-size="12">(指向内存 RAM)</text>
+          <rect x="320" y="38" width="100" height="52" rx="8" fill="#1d2637" stroke="#33405f"/>
+          <text x="370" y="69" fill="#8b98b5" font-size="12" text-anchor="middle">属性位</text>
+          <rect x="420" y="38" width="30" height="52" rx="8" fill="#3ddc97"/>
+          <text x="435" y="69" fill="#04121f" font-size="13" text-anchor="middle" font-weight="700">11</text>
+          <text x="435" y="103" fill="#3ddc97" font-size="10" text-anchor="middle">bit[1:0]=11</text>
+          <text x="20" y="122" fill="#8b98b5" font-size="12">硬件：bit[0]=1 → 直接翻译，产出 PA</text>
+
+          <!-- swap -->
+          <text x="480" y="26" fill="#ffb454" font-size="13" font-weight="700">状态 B：页被换出到磁盘（absent）</text>
+          <rect x="480" y="38" width="430" height="52" rx="8" fill="#1d2637" stroke="#33405f"/>
+          <rect x="480" y="38" width="330" height="52" rx="8" fill="#ffb454" opacity=".16"/>
+          <text x="495" y="60" fill="#ffb454" font-size="12">swap 偏移 offset + swap 类型</text>
+          <text x="495" y="79" fill="#8b98b5" font-size="12">(复用地址位，指向磁盘)</text>
+          <rect x="810" y="38" width="100" height="52" rx="8" fill="#1d2637" stroke="#33405f"/>
+          <text x="860" y="69" fill="#8b98b5" font-size="12" text-anchor="middle">（低位）</text>
+          <rect x="910" y="38" width="20" height="52" rx="8" fill="#ff6b7a"/>
+          <text x="920" y="69" fill="#04121f" font-size="13" text-anchor="middle" font-weight="700">0</text>
+          <text x="910" y="103" fill="#ff6b7a" font-size="10" text-anchor="middle">bit[0]=0</text>
+          <text x="480" y="122" fill="#8b98b5" font-size="12">硬件：bit[0]=0 → 触发缺页 fault，把其余位原样交给软件</text>
+
+          <text x="20" y="160" fill="#dbe2f0" font-size="12">→ 页表项被复用：present 位区分“当前指向内存还是磁盘”</text>
+          <text x="20" y="180" fill="#8b98b5" font-size="12">  物理地址位在换出时被 OS 改写成 swap 设备号 + 磁盘偏移</text>
+        </svg>
+        <div class="cap">图 6 · 页表项复用：bit[0]=1 时地址字段指向内存；bit[0]=0 时地址字段被 OS 复用为磁盘位置</div>
+      </div>
+
+      <h4>② 换出 / 换入完整流程</h4>
+      <div class="grid cols2">
+        <div class="card warn">
+          <h4>换出（swap out）—— 内存快满时</h4>
+          <ol style="margin:6px 0;font-size:14px">
+            <li>OS 选一个“冷”页（LRU 等策略）</li>
+            <li>把该页内容写入 swap 分区/文件</li>
+            <li>把页表项改成 swap entry（<code>bit[0]=0</code>，存磁盘偏移）</li>
+            <li>释放这个物理页，交给其他进程</li>
+          </ol>
+        </div>
+        <div class="card ok">
+          <h4>换入（swap in）—— 之后被访问时</h4>
+          <ol style="margin:6px 0;font-size:14px">
+            <li>CPU/设备访问 VA → 查页表发现 <code>bit[0]=0</code></li>
+            <li>硬件触发缺页 fault，OS 解析 swap 设备号 + 偏移</li>
+            <li>从磁盘读回数据，分配新物理页并写入</li>
+            <li>更新页表项：恢复 <code>bit[1:0]=11</code>，指向新物理页</li>
+            <li>恢复访问，重新走查（这次命中）</li>
+          </ol>
+        </div>
+      </div>
+
+      <h4>③ SMMU 场景的特殊性（关键差异）</h4>
+      <p>CPU 侧缺页是“天然”的（page fault 异常，换入后重跑那条指令即可）。但<strong>设备 DMA 缺页麻烦得多</strong>——设备的事务已经在总线上，无法简单地“重跑指令”。</p>
+      <div class="table-wrap">
+        <table>
+          <tr><th>维度</th><th>CPU</th><th>SMMU / IOMMU</th></tr>
+          <tr><td>缺页表现</td><td>page fault 异常，换入后重试指令</td><td>设备事务已在总线上，无法简单“重来”</td></tr>
+          <tr><td>传统 IOMMU</td><td>—</td><td>只能 <strong>abort</strong>，上报 EVENTQ 的 <code>F_TRANSLATION</code>，驱动通常直接杀设备</td></tr>
+          <tr><td>现代 SMMUv3</td><td>—</td><td>支持 <strong>PRI + 可恢复 fault</strong>，可实现类似 swap 的按需换入</td></tr>
+        </table>
+      </div>
+
+      <div class="card err">
+        <h4>⚠️ 实践结论</h4>
+        <ul style="margin:6px 0">
+          <li><strong>设备 DMA 内存通常被“钉住”（pin）不 swap。</strong>传统 IOMMU 不支持可恢复 fault，DMA 缓冲一旦被换出就是灾难。这就是 <code>dma_alloc_coherent</code>、<code>get_user_pages(GUP)</code> 这类“锁定物理页”API 存在的原因，也是设备直通时 Guest 内存要锁在宿主物理内存的原因。</li>
+          <li><strong>SMMUv3 + PRI 才能做设备侧 demand paging</strong>：设备遇缺页 → 发 PRI 请求 → 软件换入页、更新页表 → 回 <code>CMD_PRI_RESP</code> → 设备重试。GPU 等设备因此能用“不常驻的地址空间”，但复杂度高，主流 DMA 仍是 pin 内存。</li>
+        </ul>
+      </div>
+
+      <div class="card grad">
+        <h4>🎯 一句话总结</h4>
+        <p style="margin:6px 0"><strong>MMU/SMMU 页表只指向内存，从不指向磁盘。</strong>“内存→磁盘”的映射是 OS 用“页表项 <code>bit[0]</code> 置 0 + 复用地址位存 swap 偏移”这个软件技巧实现的；缺页时硬件触发 fault，软件从磁盘换入再更新页表。对 SMMU 而言，设备 DMA 内存通常被 pin 住不换出，只有带 PRI 的 SMMUv3 才支持真正的设备侧按需分页。</p>
+      </div>
     </section>
 
     <!-- ===================== 10 ===================== -->
